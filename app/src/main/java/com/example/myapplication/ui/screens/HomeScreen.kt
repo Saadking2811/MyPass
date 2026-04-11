@@ -31,6 +31,7 @@ import com.example.myapplication.ui.AppUiState
 import com.example.myapplication.ui.components.*
 import com.example.myapplication.ui.theme.*
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(
     state: AppUiState,
@@ -128,6 +129,46 @@ fun HomeScreen(
                             label = "Last Name",
                             leadingIcon = Icons.Outlined.Person
                         )
+
+                        // Demo quick-fill chips
+                        Text(
+                            "Test data (tap to fill):",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = NeutralGray600
+                        )
+                        val demoFlights = listOf(
+                            "AB12CD" to "DOE",
+                            "ZX98MN" to "SMITH",
+                            "KL45PQ" to "BENALI",
+                            "MN77RS" to "HADJ"
+                        )
+                        androidx.compose.foundation.layout.FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            demoFlights.forEach { (ref, name) ->
+                                SuggestionChip(
+                                    onClick = {
+                                        bookingRef = ref
+                                        lastName = name
+                                        onLookup(ref, name)
+                                    },
+                                    label = {
+                                        Text(
+                                            "$ref / $name",
+                                            style = MaterialTheme.typography.labelSmall
+                                        )
+                                    },
+                                    icon = {
+                                        Icon(
+                                            Icons.Filled.FlightTakeoff,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                )
+                            }
+                        }
 
                         GradientButton(
                             text = if (state.isLoading) "Searching..." else "Retrieve Booking",

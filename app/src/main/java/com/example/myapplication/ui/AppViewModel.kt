@@ -37,7 +37,13 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 data class AppUiState(
-    val currentUser: UserAccount? = null,
+    val currentUser: UserAccount? = UserAccount(
+        id = "demo-001",
+        fullName = "Demo Passenger",
+        email = "demo@skypass.com",
+        phone = "+213 555 0100",
+        createdAt = "2026-01-01T00:00:00Z"
+    ),
     val lookupResult: FlightItinerary? = null,
     val draft: CheckInDraft? = null,
     val seatMap: List<Seat> = emptyList(),
@@ -76,6 +82,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+
+        // Auto-load first demo flight so the app is immediately testable
+        lookupFlight("AB12CD", "DOE")
 
         viewModelScope.launch {
             networkMonitor.isOnline.collectLatest { online ->
