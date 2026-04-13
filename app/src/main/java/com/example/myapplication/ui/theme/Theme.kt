@@ -1,4 +1,4 @@
-package com.example.myapplication.ui.theme
+﻿package com.example.myapplication.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -9,47 +9,51 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme = darkColorScheme(
-    primary = SkyBlue,
-    onPrimary = Color.White,
-    primaryContainer = SkyBlueDark,
-    onPrimaryContainer = SkyBlueLight,
-    secondary = CoralOrange,
-    onSecondary = Color.White,
-    secondaryContainer = CoralOrangeDark,
-    onSecondaryContainer = CoralOrangeLight,
-    tertiary = SuccessGreen,
-    onTertiary = Color.White,
-    background = DarkSurface,
-    onBackground = NeutralGray100,
-    surface = DarkSurfaceElevated,
-    onSurface = NeutralGray100,
-    surfaceVariant = DarkSurfaceCard,
-    onSurfaceVariant = NeutralGray400,
+    primary = FreshGreen,
+    onPrimary = PureWhite,
+    primaryContainer = EmeraldGreen,
+    onPrimaryContainer = LightGreen,
+    secondary = CrimsonRed,
+    onSecondary = PureWhite,
+    secondaryContainer = Color(0xFF5C0015),
+    onSecondaryContainer = SoftRed,
+    tertiary = RoyalGold,
+    onTertiary = Color.Black,
+    tertiaryContainer = Color(0xFF5C4A10),
+    onTertiaryContainer = SoftGold,
+    background = DarkNavy,
+    onBackground = IvoryWhite,
+    surface = DarkSurface,
+    onSurface = IvoryWhite,
+    surfaceVariant = DarkCard,
+    onSurfaceVariant = SilverGray,
     outline = DarkBorder,
-    error = ErrorRed,
-    onError = Color.White
+    error = StatusError,
+    onError = PureWhite
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = SkyBlue,
-    onPrimary = Color.White,
-    primaryContainer = SkyBlueSubtle,
-    onPrimaryContainer = SkyBlueDark,
-    secondary = CoralOrange,
-    onSecondary = Color.White,
-    secondaryContainer = Color(0xFFFFF0E8),
-    onSecondaryContainer = CoralOrangeDark,
-    tertiary = SuccessGreen,
-    onTertiary = Color.White,
-    background = NeutralGray50,
-    onBackground = NeutralGray900,
-    surface = NeutralWhite,
-    onSurface = NeutralGray900,
-    surfaceVariant = NeutralGray100,
-    onSurfaceVariant = NeutralGray600,
-    outline = NeutralGray300,
-    error = ErrorRed,
-    onError = Color.White
+    primary = FreshGreen,
+    onPrimary = PureWhite,
+    primaryContainer = MintGreen,
+    onPrimaryContainer = DarkGreen,
+    secondary = CrimsonRed,
+    onSecondary = PureWhite,
+    secondaryContainer = WarmPink,
+    onSecondaryContainer = Color(0xFF5C0015),
+    tertiary = RoyalGold,
+    onTertiary = PureWhite,
+    tertiaryContainer = PaleGold,
+    onTertiaryContainer = Color(0xFF5C4A10),
+    background = WarmWhite,
+    onBackground = DeepCharcoal,
+    surface = PureWhite,
+    onSurface = DeepCharcoal,
+    surfaceVariant = IvoryWhite,
+    onSurfaceVariant = SteelGray,
+    outline = CloudGray,
+    error = StatusError,
+    onError = PureWhite
 )
 
 @Composable
@@ -58,11 +62,7 @@ fun MyApplicationTheme(
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> if (darkTheme) DarkColorScheme else LightColorScheme
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
+    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 
     MaterialTheme(
         colorScheme = colorScheme,
@@ -70,3 +70,7 @@ fun MyApplicationTheme(
         content = content
     )
 }
+
+// Expose for external use
+val LightColors = LightColorScheme
+val DarkColors = DarkColorScheme

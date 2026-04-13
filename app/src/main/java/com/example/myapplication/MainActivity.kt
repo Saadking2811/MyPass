@@ -4,6 +4,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import com.example.myapplication.data.PreferencesManager
 import com.example.myapplication.ui.AirlineCheckInApp
 import com.example.myapplication.ui.theme.MyApplicationTheme
 
@@ -11,9 +14,19 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        val preferencesManager = PreferencesManager(applicationContext)
+
         setContent {
-            MyApplicationTheme {
-                AirlineCheckInApp()
+            val isDarkMode by preferencesManager.isDarkMode.collectAsState(initial = false)
+            val language by preferencesManager.language.collectAsState(initial = "en")
+
+            MyApplicationTheme(darkTheme = isDarkMode) {
+                AirlineCheckInApp(
+                    preferencesManager = preferencesManager,
+                    isDarkMode = isDarkMode,
+                    currentLanguage = language
+                )
             }
         }
     }

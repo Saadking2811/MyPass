@@ -37,13 +37,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 data class AppUiState(
-    val currentUser: UserAccount? = UserAccount(
-        id = "demo-001",
-        fullName = "Demo Passenger",
-        email = "demo@skypass.com",
-        phone = "+213 555 0100",
-        createdAt = "2026-01-01T00:00:00Z"
-    ),
+    val currentUser: UserAccount? = null,
     val lookupResult: FlightItinerary? = null,
     val draft: CheckInDraft? = null,
     val seatMap: List<Seat> = emptyList(),
@@ -82,9 +76,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
-
-        // Auto-load first demo flight so the app is immediately testable
-        lookupFlight("AB12CD", "DOE")
 
         viewModelScope.launch {
             networkMonitor.isOnline.collectLatest { online ->
@@ -284,57 +275,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    suspend fun scanPassportWithOcr(context: Context, imageUri: Uri): PassportInfo {
-        val image = InputImage.fromFilePath(context, imageUri)
-        return scanPassportWithImage(image)
-    }
-
-    suspend fun scanPassportBitmapWithOcr(bitmap: Bitmap): PassportInfo {
-        val image = InputImage.fromBitmap(bitmap, 0)
-        return scanPassportWithImage(image)
-    }
-
-    private suspend fun scanPassportWithImage(image: InputImage): PassportInfo {
-        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-        val result = recognizer.process(image).await()
-        val fullText = result.text
-
-        if (fullText.isBlank()) {
-            throw IllegalArgumentException("No readable text detected. Please use a clearer image.")
-        }
-
-        // Extract passport number (MRZ pattern or alphanumeric 6-9 chars)
-        val numberMatch = Regex("[A-Z0-9]{6,9}").find(fullText.uppercase())?.value ?: "UNKNOWN"
-
-        // Extract name (longest line with mostly letters)
-        val bestName = fullText.lines()
-            .map { it.trim() }
-            .filter { it.count { ch -> ch.isLetter() } >= 5 }
-            .maxByOrNull { it.count { ch -> ch.isLetter() } }
-            ?.uppercase()
-            ?: "UNKNOWN PASSENGER"
-
-        // Try extract nationality
-        val nationalityCodes = listOf("DZA", "FRA", "USA", "GBR", "DEU", "MAR", "TUN", "EGY", "SAU", "ARE", "TUR")
-        val nationality = nationalityCodes.firstOrNull { fullText.uppercase().contains(it) } ?: ""
-
-        // Try extract dates (DD/MM/YYYY or YYMMDD)
-        val datePattern = Regex("\\d{2}[/\\-.]\\d{2}[/\\-.]\\d{4}")
-        val dates = datePattern.findAll(fullText).map { it.value }.toList()
-
-        val passportInfo = PassportInfo(
-            fullName = bestName,
-            passportNumber = numberMatch,
-            nationality = nationality,
-            dateOfBirth = dates.getOrElse(0) { "" },
-            expiryDate = dates.getOrElse(1) { "" },
-            gender = if (fullText.uppercase().contains(" M ") || fullText.uppercase().contains("/M/")) "M" else if (fullText.uppercase().contains(" F ") || fullText.uppercase().contains("/F/")) "F" else "",
-            rawText = fullText,
-            verified = numberMatch != "UNKNOWN"
-        )
-        attachPassportInfo(passportInfo)
-        return passportInfo
-    }
+    // Passport scanning is now handled via CameraX + ICAO 9303 MRZ parser in the UI layer
 
     fun generateQrBitmap(content: String, size: Int = 800): Bitmap {
         val matrix = MultiFormatWriter().encode(content, BarcodeFormat.QR_CODE, size, size)
@@ -347,81 +288,160 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val page = pdf.startPage(pageInfo)
         val canvas = page.canvas
 
+        val green = android.graphics.Color.parseColor("#006233")
+        val freshGreen = android.graphics.Color.parseColor("#00A651")
+        val red = android.graphics.Color.parseColor("#D21034")
+        val white = android.graphics.Color.WHITE
+        val darkText = android.graphics.Color.parseColor("#212529")
+        val grayText = android.graphics.Color.parseColor("#868E96")
+        val lightBg = android.graphics.Color.parseColor("#F5F7F9")
+
         // Background
-        val bgPaint = android.graphics.Paint().apply { color = android.graphics.Color.WHITE }
-        canvas.drawRect(0f, 0f, 595f, 842f, bgPaint)
+        canvas.drawColor(white)
 
-        // Header bar
-        val headerPaint = android.graphics.Paint().apply { color = android.graphics.Color.parseColor("#0770E3") }
-        canvas.drawRect(0f, 0f, 595f, 80f, headerPaint)
+        // ── Header bar with gradient effect ──
+        val headerPaint = android.graphics.Paint()
+        val headerGradient = android.graphics.LinearGradient(
+            0f, 0f, 595f, 0f,
+            green, freshGreen,
+            android.graphics.Shader.TileMode.CLAMP
+        )
+        headerPaint.shader = headerGradient
+        canvas.drawRect(0f, 0f, 595f, 100f, headerPaint)
 
+        // Red accent strip at bottom of header
+        val redPaint = android.graphics.Paint().apply { color = red }
+        canvas.drawRect(0f, 100f, 595f, 104f, redPaint)
+
+        // Crescent + Star logo in header
+        val logoPaint = android.graphics.Paint().apply { color = white; isAntiAlias = true }
+        // Crescent: draw two circles
+        canvas.drawCircle(45f, 50f, 22f, logoPaint)
+        val erasePaint = android.graphics.Paint().apply { color = green; isAntiAlias = true }
+        canvas.drawCircle(52f, 47f, 17f, erasePaint)
+        // Star
+        val starPaint = android.graphics.Paint().apply { color = white; isAntiAlias = true; style = android.graphics.Paint.Style.FILL }
+        val starPath = android.graphics.Path()
+        val sCx = 62f; val sCy = 48f; val outer = 9f; val inner = 4f
+        for (i in 0 until 5) {
+            val outerAngle = Math.toRadians((i * 72 - 90).toDouble())
+            val innerAngle = Math.toRadians((i * 72 + 36 - 90).toDouble())
+            val ox = sCx + outer * kotlin.math.cos(outerAngle).toFloat()
+            val oy = sCy + outer * kotlin.math.sin(outerAngle).toFloat()
+            val ix = sCx + inner * kotlin.math.cos(innerAngle).toFloat()
+            val iy = sCy + inner * kotlin.math.sin(innerAngle).toFloat()
+            if (i == 0) starPath.moveTo(ox, oy) else starPath.lineTo(ox, oy)
+            starPath.lineTo(ix, iy)
+        }
+        starPath.close()
+        canvas.drawPath(starPath, starPaint)
+
+        // Header text
         val headerTextPaint = android.graphics.Paint().apply {
-            color = android.graphics.Color.WHITE
-            textSize = 24f
-            isFakeBoldText = true
+            color = white; textSize = 28f; isFakeBoldText = true; isAntiAlias = true
         }
-        canvas.drawText("SkyPass - Boarding Pass", 30f, 50f, headerTextPaint)
+        canvas.drawText("MyPass", 85f, 48f, headerTextPaint)
+        val subHeaderPaint = android.graphics.Paint().apply {
+            color = android.graphics.Color.argb(180, 255, 255, 255); textSize = 13f; isAntiAlias = true
+        }
+        canvas.drawText("BOARDING PASS  •  ${boardingPass.airlineName}", 85f, 70f, subHeaderPaint)
 
-        // Flight info
-        val titlePaint = android.graphics.Paint().apply {
-            textSize = 14f
-            color = android.graphics.Color.parseColor("#868E96")
+        // Flight number badge on right
+        val flightBadgePaint = android.graphics.Paint().apply {
+            color = white; textSize = 24f; isFakeBoldText = true; isAntiAlias = true; textAlign = android.graphics.Paint.Align.RIGHT
         }
-        val valuePaint = android.graphics.Paint().apply {
-            textSize = 18f
-            color = android.graphics.Color.parseColor("#212529")
-            isFakeBoldText = true
-        }
-        val largePaint = android.graphics.Paint().apply {
-            textSize = 36f
-            color = android.graphics.Color.parseColor("#212529")
-            isFakeBoldText = true
-        }
+        canvas.drawText(boardingPass.flightNumber, 565f, 58f, flightBadgePaint)
 
-        var y = 120f
+        // ── Route section ──
+        val titlePaint = android.graphics.Paint().apply { textSize = 12f; color = grayText; isAntiAlias = true; letterSpacing = 0.08f }
+        val valuePaint = android.graphics.Paint().apply { textSize = 18f; color = darkText; isFakeBoldText = true; isAntiAlias = true }
+        val largePaint = android.graphics.Paint().apply { textSize = 42f; color = green; isFakeBoldText = true; isAntiAlias = true }
+        val cityPaint = android.graphics.Paint().apply { textSize = 13f; color = grayText; isAntiAlias = true }
 
-        // Route
+        var y = 140f
         canvas.drawText("FROM", 30f, y, titlePaint)
-        canvas.drawText("TO", 350f, y, titlePaint)
-        y += 35f
+        canvas.drawText("TO", 400f, y, titlePaint)
+        y += 40f
         canvas.drawText(boardingPass.origin, 30f, y, largePaint)
-        canvas.drawText(boardingPass.destination, 350f, y, largePaint)
-        y += 20f
-        canvas.drawText(boardingPass.originCity, 30f, y, titlePaint)
-        canvas.drawText(boardingPass.destinationCity, 350f, y, titlePaint)
+        canvas.drawText(boardingPass.destination, 400f, y, largePaint)
+        y += 18f
+        canvas.drawText(boardingPass.originCity, 30f, y, cityPaint)
+        canvas.drawText(boardingPass.destinationCity, 400f, y, cityPaint)
 
-        y += 50f
-        val fields = listOf(
+        // Airplane icon between codes
+        val planePaint = android.graphics.Paint().apply { color = red; textSize = 20f; isAntiAlias = true; textAlign = android.graphics.Paint.Align.CENTER }
+        canvas.drawText("✈", 297f, y - 22f, planePaint)
+
+        // ── Dotted divider ──
+        y += 30f
+        val dashPaint = android.graphics.Paint().apply {
+            color = android.graphics.Color.parseColor("#DEE2E6")
+            strokeWidth = 1.5f
+            style = android.graphics.Paint.Style.STROKE
+            pathEffect = android.graphics.DashPathEffect(floatArrayOf(8f, 5f), 0f)
+            isAntiAlias = true
+        }
+        canvas.drawLine(30f, y, 565f, y, dashPaint)
+
+        // ── Two-column info grid ──
+        y += 30f
+        val leftFields = listOf(
             "PASSENGER" to boardingPass.passengerName,
-            "FLIGHT" to boardingPass.flightNumber,
-            "BOOKING REF" to boardingPass.bookingReference,
             "SEAT" to boardingPass.seat,
-            "CLASS" to boardingPass.seatClass,
-            "GATE" to boardingPass.gate,
-            "TERMINAL" to boardingPass.terminal,
-            "DEPARTURE" to boardingPass.departureTime,
-            "ARRIVAL" to boardingPass.arrivalTime,
             "BOARDING GROUP" to boardingPass.boardingGroup,
-            "SEQUENCE" to boardingPass.sequence,
+            "DEPARTURE" to boardingPass.departureTime,
             "BAGGAGE" to boardingPass.baggageInfo,
-            "STATUS" to boardingPass.status,
-            "ISSUED" to boardingPass.issuedAt.take(19)
+            "ISSUED" to boardingPass.issuedAt.take(16)
+        )
+        val rightFields = listOf(
+            "BOOKING REF" to boardingPass.bookingReference,
+            "CLASS" to boardingPass.seatClass,
+            "SEQUENCE" to boardingPass.sequence,
+            "ARRIVAL" to boardingPass.arrivalTime,
+            "GATE" to boardingPass.gate,
+            "TERMINAL" to boardingPass.terminal
         )
 
-        fields.forEach { (label, value) ->
-            canvas.drawText(label, 30f, y, titlePaint)
-            y += 22f
-            canvas.drawText(value, 30f, y, valuePaint)
-            y += 32f
+        leftFields.forEachIndexed { i, (label, value) ->
+            val fy = y + i * 52f
+            canvas.drawText(label, 30f, fy, titlePaint)
+            canvas.drawText(value, 30f, fy + 20f, valuePaint)
+        }
+        rightFields.forEachIndexed { i, (label, value) ->
+            val fy = y + i * 52f
+            canvas.drawText(label, 330f, fy, titlePaint)
+            canvas.drawText(value, 330f, fy + 20f, valuePaint)
         }
 
-        // QR Code
-        val qrBitmap = generateQrBitmap(boardingPass.qrPayload, 200)
-        canvas.drawBitmap(qrBitmap, 370f, 200f, null)
+        // ── Dotted divider before QR ──
+        val qrDivY = y + leftFields.size * 52f + 10f
+        canvas.drawLine(30f, qrDivY, 565f, qrDivY, dashPaint)
+
+        // ── QR Code section ──
+        val qrBitmap = generateQrBitmap(boardingPass.qrPayload, 180)
+        val qrY = qrDivY + 20f
+        // Light background behind QR
+        val qrBgPaint = android.graphics.Paint().apply { color = lightBg; isAntiAlias = true }
+        canvas.drawRoundRect(android.graphics.RectF(30f, qrY, 565f, qrY + 200f), 12f, 12f, qrBgPaint)
+        canvas.drawBitmap(qrBitmap, 207f, qrY + 10f, null)
+
+        // QR label
+        val qrLabelPaint = android.graphics.Paint().apply {
+            textSize = 11f; color = grayText; isAntiAlias = true; textAlign = android.graphics.Paint.Align.CENTER
+        }
+        canvas.drawText("Scan at gate for boarding", 297f, qrY + 195f, qrLabelPaint)
+
+        // ── Footer ──
+        val footerY = 820f
+        val footerPaint = android.graphics.Paint().apply { textSize = 10f; color = grayText; isAntiAlias = true; textAlign = android.graphics.Paint.Align.CENTER }
+        canvas.drawText("MyPass™ — Your Digital Passport to the World  |  Status: ${boardingPass.status}", 297f, footerY, footerPaint)
+
+        // Green bottom bar
+        canvas.drawRect(0f, 832f, 595f, 842f, android.graphics.Paint().apply { color = green })
 
         pdf.finishPage(page)
 
-        val fileName = "SkyPass-${boardingPass.bookingReference}-${boardingPass.flightNumber}.pdf"
+        val fileName = "MyPass-${boardingPass.bookingReference}-${boardingPass.flightNumber.replace(" ", "")}.pdf"
         val values = android.content.ContentValues().apply {
             put(MediaStore.Downloads.DISPLAY_NAME, fileName)
             put(MediaStore.Downloads.MIME_TYPE, "application/pdf")

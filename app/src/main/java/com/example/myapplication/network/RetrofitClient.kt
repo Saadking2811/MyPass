@@ -8,18 +8,18 @@ import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
 
-    // PostgreSQL backend URL - change to your server address
-    private const val BASE_URL = "http://10.0.2.2:8080/api/"
+    // Backend URL — real device connects via LAN IP
+    private const val BASE_URL = "http://192.168.1.4:8082/api/"
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
-        level = HttpLoggingInterceptor.Level.BODY
+        level = HttpLoggingInterceptor.Level.BASIC
     }
 
     private val okHttpClient = OkHttpClient.Builder()
         .addInterceptor(loggingInterceptor)
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(3, TimeUnit.SECONDS)
+        .readTimeout(3, TimeUnit.SECONDS)
+        .writeTimeout(3, TimeUnit.SECONDS)
         .build()
 
     val apiService: ApiService by lazy {
