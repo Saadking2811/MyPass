@@ -138,9 +138,11 @@ object MrzParser {
         val docType = line1.substring(0, 2).replace("<", "").ifEmpty { "P" }
         val issuingCountry = line1.substring(2, 5).replace("<", "")
         val nameField = line1.substring(5)
-        val nameParts = nameField.split("<<", limit = 2)
-        val lastName = nameParts.getOrElse(0) { "" }.replace("<", " ").trim()
-        val firstName = nameParts.getOrElse(1) { "" }.replace("<", " ").trim()
+
+        // Smart filler detection: OCR often misreads runs of '<' as runs of identical
+        // letters (K, L, c, etc.). Detect long letter runs and treat them as fillers.
+        val sanitizedNameField = recoverFillerFromLetterRuns(nameField)
+        val (lastName, firstName) = extractNames(sanitizedNameField)
 
         // ── Line 2 parsing ──
         val passportNumber = line2.substring(0, 9).replace("<", "")
@@ -298,4 +300,74 @@ object MrzParser {
      * Get human-readable country name from ISO 3166-1 alpha-3 code.
      */
     fun getCountryName(code: String): String = COUNTRY_NAMES[code.uppercase()] ?: code
+
+    /**
+     * OCR engines often misread runs of `<` as runs of identical letters (K, L, c, T, ...).
+     * Detect runs of 4+ consecutive identical letters at the END of the name field, or
+     * 2+ identical letters used as a delimiter, and convert them back to `<`.
+     *
+     * Heuristic: in a real MRZ name field, real names rarely have runs of 4+ identical
+     * letters. So treat such runs as filler.
+     */
+    private fun recoverFillerFromLetterRuns(nameField: String): String {
+        // Step A: find runs of 4+ identical chars (very likely OCR'd filler)
+        var result = nameField
+        val longRunRegex = Regex("(.)\\1{3,}")
+        longRunRegex.findAll(nameField).forEach { match ->
+            val ch = match.value[0]
+            if (ch != '<') {
+                result = result.replace(Regex(Regex.escape(ch.toString()) + "{3,}")) { m ->
+                    "<".repeat(m.value.length)
+                }
+            }
+        }
+
+        // Step B: any pair (or longer) of the SAME non-< character that follows real letters
+        // and appears in the body is likely a misread `<<` delimiter.
+        // Try the most common non-< character that appears 2+ times in a row.
+        val pairRegex = Regex("([A-Z])\\1+")
+        val candidates = pairRegex.findAll(result).map { it.value[0] }.toList().groupingBy { it }.eachCount()
+        // Prefer rare chars (K, X, Q, Z) — common in OCR errors but rare as repeated name letters
+        val likelyFiller = candidates.entries
+            .filter { it.value >= 1 && it.key !in setOf('A', 'E', 'I', 'O', 'U', 'L', 'N', 'M', 'R', 'S', 'T') }
+            .maxByOrNull { it.value }?.key
+
+        if (likelyFiller != null) {
+            // Replace runs of 2+ likelyFiller with <
+            result = result.replace(Regex(Regex.escape(likelyFiller.toString()) + "{2,}")) { m ->
+                "<".repeat(m.value.length)
+            }
+        }
+
+        return result
+    }
+
+    /**
+     * Extract last and first names from MRZ name field (post-filler-recovery).
+     * Tries `<<` split first, then falls back to splitting on any run of `<`.
+     */
+    private fun extractNames(nameField: String): Pair<String, String> {
+        // Strategy 1: Standard `<<` separator
+        val parts1 = nameField.split("<<", limit = 2)
+        if (parts1.size == 2) {
+            val last  = parts1[0].replace("<", " ").trim()
+            val first = parts1[1].replace("<", " ").trim()
+            if (last.isNotBlank() && last.length >= 2 && last.all { it.isLetter() || it == ' ' }) {
+                return last to first
+            }
+        }
+
+        // Strategy 2: Split on any run of `<` (1 or more)
+        val parts2 = nameField.split(Regex("<+")).filter { it.isNotBlank() }
+        if (parts2.size >= 2) {
+            val last  = parts2[0].trim()
+            val first = parts2.drop(1).joinToString(" ").trim()
+            if (last.length >= 2) return last to first
+        }
+
+        // Strategy 3: take first sequence of letters as last name
+        if (parts2.size == 1) return parts2[0].trim() to ""
+
+        return "" to ""
+    }
 }
