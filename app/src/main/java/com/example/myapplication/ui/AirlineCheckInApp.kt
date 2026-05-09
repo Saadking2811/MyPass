@@ -3598,12 +3598,93 @@ private fun PreferencesScreen(
     var selectedLang by remember { mutableStateOf(currentLanguage) }
     var notificationsEnabled by remember { mutableStateOf(true) }
     var biometricEnabled     by remember { mutableStateOf(false) }
+    var serverUrl by remember { mutableStateOf(com.example.myapplication.network.RetrofitClient.getBaseUrl()) }
+    var serverStatus by remember { mutableStateOf<String?>(null) }
+    var probing by remember { mutableStateOf(false) }
 
     LaunchedEffect(preferencesManager) { preferencesManager?.notificationsEnabled?.collect { notificationsEnabled = it } }
     LaunchedEffect(preferencesManager) { preferencesManager?.biometricEnabled?.collect { biometricEnabled = it } }
 
     ScreenScaffold(title = "Settings", onBack = onBack) {
         LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 16.dp)) {
+            // ── Server (backend) section ──
+            item { ProfileSectionLabel("Backend Server") }
+            item {
+                ProfileMenuGroup {
+                    Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Server URL",
+                            style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                        Text("PostgreSQL-backed API. Use 10.0.2.2:8082 for emulator, or your PC's LAN IP for a real device.",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        OutlinedTextField(
+                            value = serverUrl,
+                            onValueChange = { serverUrl = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            singleLine = true,
+                            placeholder = { Text("http://10.0.2.2:8082/api/") },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = EmeraldGreen,
+                                focusedLabelColor = EmeraldGreen,
+                                cursorColor = EmeraldGreen
+                            )
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = {
+                                    com.example.myapplication.network.RetrofitClient.setBaseUrl(serverUrl)
+                                    serverStatus = "Saved"
+                                },
+                                modifier = Modifier.weight(1f).height(44.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, EmeraldGreen),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = EmeraldGreen)
+                            ) { Text("Save", fontWeight = FontWeight.SemiBold) }
+                            Button(
+                                onClick = {
+                                    probing = true
+                                    com.example.myapplication.network.RetrofitClient.setBaseUrl(serverUrl)
+                                    scope.launch {
+                                        val err = com.example.myapplication.network.RetrofitClient.probe()
+                                        serverStatus = if (err == null) "✓ Connected" else "✗ $err"
+                                        probing = false
+                                    }
+                                },
+                                modifier = Modifier.weight(1f).height(44.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen, contentColor = PureWhite),
+                                enabled = !probing
+                            ) {
+                                if (probing) {
+                                    CircularProgressIndicator(color = PureWhite, strokeWidth = 2.dp,
+                                        modifier = Modifier.size(16.dp))
+                                } else Text("Test Connection", fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                        serverStatus?.let { status ->
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(
+                                        if (status.startsWith("✓")) EmeraldGreen.copy(alpha = 0.10f)
+                                        else if (status.startsWith("✗")) CrimsonRed.copy(alpha = 0.10f)
+                                        else MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                                    .padding(12.dp)
+                            ) {
+                                Text(status,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = if (status.startsWith("✓")) EmeraldGreen
+                                            else if (status.startsWith("✗")) CrimsonRed
+                                            else MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+            item { Spacer(modifier = Modifier.height(12.dp)) }
             item { ProfileSectionLabel("Appearance") }
             item {
                 ProfileMenuGroup {

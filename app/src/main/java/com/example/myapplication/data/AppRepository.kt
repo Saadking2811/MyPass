@@ -38,6 +38,8 @@ class AppRepository(private val context: Context) {
             if (response.isSuccessful && response.body()?.success == true) {
                 val user = response.body()!!.user!!
                 val token = response.body()!!.token
+                RetrofitClient.setAuthToken(token)
+                RetrofitClient.setUserId(user.id)
                 saveToken(token)
                 saveUser(user)
                 Result.success(user)
@@ -45,16 +47,7 @@ class AppRepository(private val context: Context) {
                 Result.failure(Exception(response.body()?.message ?: "Registration failed"))
             }
         } catch (e: Exception) {
-            // Fallback: create local account when server unreachable
-            val user = UserAccount(
-                id = UUID.randomUUID().toString(),
-                fullName = fullName.trim(),
-                email = email.trim(),
-                phone = phone.trim(),
-                createdAt = Instant.now().toString()
-            )
-            saveUser(user)
-            Result.success(user)
+            Result.failure(Exception("Cannot reach backend at ${RetrofitClient.getBaseUrl()}. Make sure the server is running."))
         }
     }
 
@@ -63,19 +56,23 @@ class AppRepository(private val context: Context) {
             val response = api.login(LoginRequest(email, password))
             if (response.isSuccessful && response.body()?.success == true) {
                 val user = response.body()!!.user!!
-                saveToken(response.body()!!.token)
+                val token = response.body()!!.token
+                RetrofitClient.setAuthToken(token)
+                RetrofitClient.setUserId(user.id)
+                saveToken(token)
                 saveUser(user)
                 Result.success(user)
             } else {
                 Result.failure(Exception(response.body()?.message ?: "Invalid credentials"))
             }
         } catch (e: Exception) {
-            // Check local cache
+            // Offline fallback: only re-use the previously logged-in user.
             val cache = currentCache()
-            if (cache.user != null && cache.user.email == email) {
+            if (cache.user != null && cache.user.email.equals(email, ignoreCase = true)) {
+                RetrofitClient.setUserId(cache.user.id)
                 Result.success(cache.user)
             } else {
-                Result.failure(Exception("Cannot connect to server. Please check your connection."))
+                Result.failure(Exception("Cannot reach backend at ${RetrofitClient.getBaseUrl()}. Check the server URL in Settings."))
             }
         }
     }
@@ -85,22 +82,17 @@ class AppRepository(private val context: Context) {
             val response = api.googleSignIn(GoogleAuthRequest("mock_token", email, displayName))
             if (response.isSuccessful && response.body()?.success == true) {
                 val user = response.body()!!.user!!
-                saveToken(response.body()!!.token)
+                val token = response.body()!!.token
+                RetrofitClient.setAuthToken(token)
+                RetrofitClient.setUserId(user.id)
+                saveToken(token)
                 saveUser(user)
                 Result.success(user)
             } else {
                 Result.failure(Exception(response.body()?.message ?: "Google sign-in failed"))
             }
         } catch (e: Exception) {
-            val user = UserAccount(
-                id = UUID.randomUUID().toString(),
-                fullName = displayName,
-                email = email,
-                phone = "",
-                createdAt = Instant.now().toString()
-            )
-            saveUser(user)
-            Result.success(user)
+            Result.failure(Exception("Cannot reach backend at ${RetrofitClient.getBaseUrl()}."))
         }
     }
 
@@ -148,7 +140,9 @@ class AppRepository(private val context: Context) {
 
     suspend fun completeCheckIn(draft: CheckInDraft): Result<BoardingPass> {
         return try {
+            val cache = currentCache()
             val request = CheckInRequest(
+                userId = cache.user?.id ?: RetrofitClient.getUserId(),
                 bookingReference = draft.itinerary.bookingReference,
                 passengerName = draft.itinerary.passengerName,
                 passportInfo = draft.passportInfo ?: PassportInfo(),
@@ -159,13 +153,14 @@ class AppRepository(private val context: Context) {
             val response = api.completeCheckIn(request)
             if (response.isSuccessful && response.body()?.success == true) {
                 val pass = response.body()!!.boardingPass!!
-                saveBoardingPass(pass)
+                saveBoardingPass(pass)  // local cache for offline access
                 Result.success(pass)
             } else {
                 Result.failure(Exception(response.body()?.message ?: "Check-in failed"))
             }
         } catch (e: Exception) {
-            // Create boarding pass locally
+            // Backend unreachable — issue a local pass so the user can still board,
+            // sync will reconcile when the backend comes back online.
             val pass = createLocalBoardingPass(draft)
             saveBoardingPass(pass)
             Result.success(pass)

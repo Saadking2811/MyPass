@@ -50,6 +50,7 @@ import java.util.*
     val travelingWithInfant: Boolean = false, val travelingWithPet: Boolean = false, val notes: String = ""
 )
 @Serializable data class CheckInReq(
+    val userId: String = "",
     val bookingReference: String, val passengerName: String,
     val passportInfo: PassportDto = PassportDto(), val selectedSeat: String,
     val baggage: BaggageDto = BaggageDto(), val specialRequests: SpecialReqDto = SpecialReqDto()
@@ -266,9 +267,22 @@ fun Application.configureRoutes() {
 
                     val boardingGroup = if (seat.firstOrNull()?.digitToIntOrNull()?.let { it <= 4 } == true) "Priority" else "A"
 
+                    // Resolve a valid userId — fallback to header or null if unauthenticated
+                    val authUserId: String? = req.userId.trim().ifBlank {
+                        call.request.headers["X-User-Id"]?.trim()
+                    }?.let { rawId ->
+                        // Verify the user exists, else null
+                        transaction {
+                            UsersTable.selectAll().where { UsersTable.id eq rawId }.firstOrNull()
+                        }?.let { rawId }
+                    }
+
+                    val sequenceStr = String.format("%03d", (1..200).random())
+
                     transaction {
                         BoardingPassesTable.insert {
                             it[id] = passId
+                            if (authUserId != null) it[userId] = authUserId
                             it[bookingReference] = req.bookingReference.uppercase()
                             it[passengerName] = req.passengerName
                             it[flightNumber] = flight[FlightsTable.flightNumber]
@@ -284,7 +298,7 @@ fun Application.configureRoutes() {
                             it[BoardingPassesTable.seat] = seat
                             it[seatClass] = flight[FlightsTable.seatClass]
                             it[BoardingPassesTable.boardingGroup] = boardingGroup
-                            it[sequence] = String.format("%03d", (1..200).random())
+                            it[sequence] = sequenceStr
                             it[BoardingPassesTable.qrPayload] = qrPayload
                             it[issuedAt] = now
                             it[baggageInfo] = baggage
@@ -295,6 +309,7 @@ fun Application.configureRoutes() {
 
                         CheckInsTable.insert {
                             it[id] = UUID.randomUUID().toString()
+                            if (authUserId != null) it[userId] = authUserId
                             it[flightId] = flight[FlightsTable.id]
                             it[boardingPassId] = passId
                             it[passportNumber] = req.passportInfo.passportNumber
@@ -324,7 +339,7 @@ fun Application.configureRoutes() {
                         flight[FlightsTable.departureTime], flight[FlightsTable.arrivalTime],
                         flight[FlightsTable.gate], flight[FlightsTable.terminal],
                         seat, flight[FlightsTable.seatClass], boardingGroup,
-                        String.format("%03d", (1..200).random()), qrPayload,
+                        sequenceStr, qrPayload,
                         now.toString(), baggage, "Active"
                     )
 
@@ -344,15 +359,45 @@ fun Application.configureRoutes() {
                 }
             }
 
+            // ── USER → BOARDING PASSES ──────────────────────
+            get("/user/{userId}/boardingpasses") {
+                val userId = call.parameters["userId"]
+                if (userId.isNullOrBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("success" to false, "message" to "userId required"))
+                    return@get
+                }
+                val passes = transaction {
+                    BoardingPassesTable.selectAll().where {
+                        BoardingPassesTable.userId eq userId
+                    }.orderBy(BoardingPassesTable.issuedAt to SortOrder.DESC)
+                        .map { it.toBoardingPassDto() }
+                }
+                call.respond(passes)
+            }
+
             // ── SYNC ─────────────────────────────────────────
             post("/sync") {
                 val req = call.receive<SyncReq>()
+                if (req.userId.isBlank()) {
+                    call.respond(SyncResp(false, message = "userId is required"))
+                    return@post
+                }
                 val passes = transaction {
                     BoardingPassesTable.selectAll().where {
                         BoardingPassesTable.userId eq req.userId
-                    }.map { it.toBoardingPassDto() }
+                    }.orderBy(BoardingPassesTable.issuedAt to SortOrder.DESC)
+                     .map { it.toBoardingPassDto() }
                 }
-                call.respond(SyncResp(true, passes, timestamp = LocalDateTime.now().toString()))
+                // Also return all flights ever booked under this user's last_name (best effort)
+                val flights = transaction {
+                    val userLast = UsersTable.selectAll().where { UsersTable.id eq req.userId }
+                        .firstOrNull()?.get(UsersTable.fullName)?.split(" ")?.lastOrNull()?.uppercase()
+                    if (userLast != null) {
+                        FlightsTable.selectAll().where { FlightsTable.lastName.upperCase() eq userLast }
+                            .map { it.toFlightDto() }
+                    } else emptyList()
+                }
+                call.respond(SyncResp(true, passes, flights, timestamp = LocalDateTime.now().toString()))
             }
         }
     }

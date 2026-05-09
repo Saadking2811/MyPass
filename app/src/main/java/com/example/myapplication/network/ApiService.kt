@@ -6,6 +6,9 @@ import retrofit2.http.*
 
 interface ApiService {
 
+    @GET("health")
+    suspend fun healthCheck(): Response<Map<String, String>>
+
     @POST("auth/register")
     suspend fun register(@Body request: RegisterRequest): Response<AuthResponse>
 
@@ -75,6 +78,7 @@ data class SeatMapResponse(
 )
 
 data class CheckInRequest(
+    val userId: String,
     val bookingReference: String,
     val passengerName: String,
     val passportInfo: PassportInfo,

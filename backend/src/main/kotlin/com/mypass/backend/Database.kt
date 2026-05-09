@@ -121,23 +121,50 @@ object CheckInsTable : Table("check_ins") {
 object DatabaseFactory {
 
     fun init() {
-        val useH2 = System.getenv("DB_MODE")?.lowercase() == "h2"
-        val db = if (useH2 || !isPostgresReachable()) {
-            println("⚡ Using H2 in-memory database (dev/test mode)")
-            Database.connect("jdbc:h2:mem:mypass;DB_CLOSE_DELAY=-1;", driver = "org.h2.Driver")
-        } else {
-            println("🐘 Connecting to PostgreSQL")
-            val config = HikariConfig().apply {
-                jdbcUrl = System.getenv("DB_URL") ?: "jdbc:postgresql://localhost:5432/mypass"
-                driverClassName = "org.postgresql.Driver"
-                username = System.getenv("DB_USER") ?: "postgres"
-                password = System.getenv("DB_PASSWORD") ?: "postgres"
-                maximumPoolSize = 10
-                isAutoCommit = false
-                transactionIsolation = "TRANSACTION_REPEATABLE_READ"
-                validate()
+        val mode = (System.getenv("DB_MODE") ?: "postgres").lowercase()
+        val jdbcUrl  = System.getenv("DB_URL")      ?: "jdbc:postgresql://localhost:5432/mypass"
+        val username = System.getenv("DB_USER")     ?: "postgres"
+        val password = System.getenv("DB_PASSWORD") ?: "postgres"
+
+        when (mode) {
+            "h2" -> {
+                println("============================================================")
+                println(" MyPass Backend — DB_MODE=h2 (development/in-memory only)")
+                println(" Data will NOT persist between restarts.")
+                println("============================================================")
+                Database.connect("jdbc:h2:mem:mypass;DB_CLOSE_DELAY=-1;", driver = "org.h2.Driver")
             }
-            Database.connect(HikariDataSource(config))
+            "postgres" -> {
+                if (!isReachable(jdbcUrl)) {
+                    System.err.println("============================================================")
+                    System.err.println(" ❌ PostgreSQL not reachable at: $jdbcUrl")
+                    System.err.println(" Start PostgreSQL or set DB_MODE=h2 to use in-memory mode.")
+                    System.err.println(" Required env vars:")
+                    System.err.println("   DB_URL      e.g. jdbc:postgresql://localhost:5432/mypass")
+                    System.err.println("   DB_USER     PostgreSQL username (default: postgres)")
+                    System.err.println("   DB_PASSWORD PostgreSQL password (default: postgres)")
+                    System.err.println("============================================================")
+                    throw RuntimeException("PostgreSQL not reachable — server cannot start.")
+                }
+                println("============================================================")
+                println(" MyPass Backend — connecting to PostgreSQL")
+                println("   URL:  $jdbcUrl")
+                println("   User: $username")
+                println("============================================================")
+                val config = HikariConfig().apply {
+                    this.jdbcUrl = jdbcUrl
+                    this.driverClassName = "org.postgresql.Driver"
+                    this.username = username
+                    this.password = password
+                    this.maximumPoolSize = 10
+                    this.isAutoCommit = false
+                    this.transactionIsolation = "TRANSACTION_REPEATABLE_READ"
+                    validate()
+                }
+                Database.connect(HikariDataSource(config))
+                println(" ✅ PostgreSQL connection established.")
+            }
+            else -> error("Unknown DB_MODE='$mode'. Use 'postgres' or 'h2'.")
         }
 
         transaction {
@@ -152,14 +179,12 @@ object DatabaseFactory {
         }
     }
 
-    private fun isPostgresReachable(): Boolean {
+    private fun isReachable(jdbcUrl: String): Boolean {
         return try {
-            val url = System.getenv("DB_URL") ?: "jdbc:postgresql://localhost:5432/mypass"
-            val host = url.substringAfter("://").substringBefore(":").substringBefore("/")
-            val port = url.substringAfter(host).substringAfter(":").substringBefore("/").toIntOrNull() ?: 5432
-            java.net.Socket().use { socket ->
-                socket.connect(java.net.InetSocketAddress(host, port), 2000)
-                true
+            val host = jdbcUrl.substringAfter("://").substringBefore(":").substringBefore("/")
+            val port = jdbcUrl.substringAfter(host).substringAfter(":").substringBefore("/").toIntOrNull() ?: 5432
+            java.net.Socket().use { s ->
+                s.connect(java.net.InetSocketAddress(host, port), 2500); true
             }
         } catch (_: Exception) {
             false
