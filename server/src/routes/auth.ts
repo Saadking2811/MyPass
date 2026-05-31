@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../lib/prisma.js';
-import { hashPassword, verifyPassword, signToken } from '../lib/auth.js';
+import { hashPassword, verifyPassword, signToken, resolveUserId } from '../lib/auth.js';
 
 const registerSchema = z.object({
   fullName: z.string().min(2).max(200),
@@ -93,6 +93,22 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       token: signToken(user.id),
       message: 'Login successful',
     };
+  });
+
+  // ── Session restore — get current user from Bearer token ──
+  app.get('/api/auth/me', async (req, reply) => {
+    const userId = resolveUserId(
+      req.headers.authorization,
+      req.headers['x-user-id'] as string | undefined
+    );
+    if (!userId) {
+      return reply.code(401).send({ success: false, message: 'Not authenticated' });
+    }
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return reply.code(401).send({ success: false, message: 'User not found' });
+    }
+    return { success: true, user: userToDto(user) };
   });
 
   // ── Google sign-in (creates user if missing) ──

@@ -47,6 +47,7 @@ data class AppUiState(
     val isLoading: Boolean = false,
     val isSyncing: Boolean = false,
     val isOnline: Boolean = true,
+    val isRestoringSession: Boolean = true,  // true on app start until /auth/me resolves
     val statusMessage: String? = null,
     val passportRawText: String = "",
     val checkInStep: Int = 0,
@@ -57,7 +58,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = AppRepository(application.applicationContext)
     private val networkMonitor = NetworkMonitor(application.applicationContext)
-    private var hasPendingSync = false
 
     private val _uiState = MutableStateFlow(AppUiState())
     val uiState: StateFlow<AppUiState> = _uiState.asStateFlow()
@@ -65,24 +65,35 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     init {
         ensureNotificationChannel()
 
-        viewModelScope.launch {
-            repository.offlineCache.collect { cache ->
-                _uiState.update {
-                    it.copy(
-                        currentUser = cache.user ?: it.currentUser,
-                        cachedBoardingPasses = cache.boardingPasses,
-                        cachedFlights = cache.flights
-                    )
-                }
-            }
-        }
-
+        // 1. Watch network connectivity.
         viewModelScope.launch {
             networkMonitor.isOnline.collectLatest { online ->
                 _uiState.update { it.copy(isOnline = online) }
-                if (online && hasPendingSync) {
-                    synchronize()
-                }
+            }
+        }
+
+        // 2. Restore session on cold start (calls /auth/me with stored Bearer token).
+        viewModelScope.launch {
+            val restored = repository.restoreSession().getOrNull()
+            if (restored != null) {
+                _uiState.update { it.copy(currentUser = restored, isRestoringSession = false) }
+                refreshUserData(restored.id)
+            } else {
+                _uiState.update { it.copy(isRestoringSession = false) }
+            }
+        }
+    }
+
+    /** Pulls fresh boarding passes + flights from the backend. */
+    private fun refreshUserData(userId: String) {
+        viewModelScope.launch {
+            val passes = repository.getUserBoardingPasses(userId).getOrNull().orEmpty()
+            val flights = repository.getUserFlights(userId).getOrNull().orEmpty()
+            _uiState.update {
+                it.copy(
+                    cachedBoardingPasses = passes,
+                    cachedFlights = flights
+                )
             }
         }
     }
@@ -101,8 +112,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.update { it.copy(isLoading = true) }
             val result = repository.register(fullName, email, phone, password)
             result.onSuccess { user ->
-                hasPendingSync = true
-                _uiState.update { it.copy(isLoading = false, currentUser = user, statusMessage = "Welcome aboard, ${user.fullName}!") }
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        currentUser = user,
+                        statusMessage = "Welcome aboard, ${user.fullName.split(" ").first()}!"
+                    )
+                }
+                refreshUserData(user.id)
             }.onFailure { error ->
                 _uiState.update { it.copy(isLoading = false, statusMessage = error.message) }
             }
@@ -119,7 +136,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.update { it.copy(isLoading = true) }
             val result = repository.login(email, password)
             result.onSuccess { user ->
-                _uiState.update { it.copy(isLoading = false, currentUser = user, statusMessage = "Welcome back, ${user.fullName}!") }
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        currentUser = user,
+                        statusMessage = "Welcome back, ${user.fullName.split(" ").first()}!"
+                    )
+                }
+                refreshUserData(user.id)
             }.onFailure { error ->
                 _uiState.update { it.copy(isLoading = false, statusMessage = error.message) }
             }
@@ -131,8 +155,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.update { it.copy(isLoading = true) }
             val result = repository.googleSignIn("Google Passenger", "google.user@gmail.com")
             result.onSuccess { user ->
-                hasPendingSync = true
-                _uiState.update { it.copy(isLoading = false, currentUser = user, statusMessage = "Signed in with Google.") }
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        currentUser = user,
+                        statusMessage = "Signed in with Google."
+                    )
+                }
+                refreshUserData(user.id)
             }.onFailure { error ->
                 _uiState.update { it.copy(isLoading = false, statusMessage = error.message) }
             }
@@ -140,18 +170,30 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun logout() {
+        repository.logout()
+        _uiState.update { AppUiState(isRestoringSession = false) }
+    }
+
+    /** Update name / phone on the server. */
+    fun updateProfile(fullName: String, phone: String) {
+        val userId = _uiState.value.currentUser?.id ?: return
         viewModelScope.launch {
-            repository.logout()
-            _uiState.update { AppUiState() }
+            _uiState.update { it.copy(isLoading = true) }
+            val result = repository.updateProfile(userId, fullName, phone)
+            result.onSuccess { user ->
+                _uiState.update { it.copy(isLoading = false, currentUser = user, statusMessage = "Profile updated.") }
+            }.onFailure { error ->
+                _uiState.update { it.copy(isLoading = false, statusMessage = error.message) }
+            }
         }
     }
 
     fun lookupFlight(bookingReference: String, lastName: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = null) }
-            val result = repository.findFlight(bookingReference, lastName)
-            result.onSuccess { itinerary ->
-                val seatMap = repository.getSeatMap(itinerary.id, itinerary.bookingReference)
+            val flightResult = repository.findFlight(bookingReference, lastName)
+            flightResult.onSuccess { itinerary ->
+                val seatMap = repository.getSeatMap(itinerary.id).getOrNull().orEmpty()
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -211,16 +253,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun completeCheckIn() {
         val draft = _uiState.value.draft
+        val userId = _uiState.value.currentUser?.id
         if (draft == null || draft.selectedSeat.isNullOrBlank()) {
             _uiState.update { it.copy(statusMessage = "Please select a seat before completing check-in.") }
+            return
+        }
+        if (userId.isNullOrBlank()) {
+            _uiState.update { it.copy(statusMessage = "You must be signed in to complete check-in.") }
             return
         }
 
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-            val result = repository.completeCheckIn(draft)
+            val result = repository.completeCheckIn(userId, draft)
             result.onSuccess { pass ->
-                hasPendingSync = true
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -230,6 +276,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
                 postCheckInNotification(pass)
+                refreshUserData(userId)
             }.onFailure { error ->
                 _uiState.update { it.copy(isLoading = false, statusMessage = "Check-in failed: ${error.message}") }
             }
@@ -237,18 +284,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun synchronize() {
+        val userId = _uiState.value.currentUser?.id ?: return
         if (!_uiState.value.isOnline) {
-            _uiState.update { it.copy(statusMessage = "Offline mode. Will sync when connected.") }
-            hasPendingSync = true
+            _uiState.update { it.copy(statusMessage = "Offline. Connect to the internet to sync.") }
             return
         }
 
         viewModelScope.launch {
             _uiState.update { it.copy(isSyncing = true) }
-            val result = repository.synchronizeWithServer()
-            hasPendingSync = false
-            result.onSuccess { message ->
-                _uiState.update { it.copy(isSyncing = false, statusMessage = message) }
+            val result = repository.synchronize(userId)
+            result.onSuccess { resp ->
+                _uiState.update {
+                    it.copy(
+                        isSyncing = false,
+                        cachedBoardingPasses = resp.boardingPasses,
+                        cachedFlights = resp.flights,
+                        statusMessage = "Synced ${resp.boardingPasses.size} passes, ${resp.flights.size} flights."
+                    )
+                }
             }.onFailure { error ->
                 _uiState.update { it.copy(isSyncing = false, statusMessage = error.message) }
             }

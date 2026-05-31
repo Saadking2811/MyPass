@@ -323,8 +323,10 @@ fun AirlineCheckInApp(
                     enterTransition = { EnterTransition.None }
                 ) {
                     SplashScreen {
+                        // Wait for session-restore to resolve before deciding the route.
+                        // The splash animates ~3.2s which is plenty of time for /auth/me.
                         navController.navigate(
-                            if (state.currentUser == null) Routes.SIGN_IN else Routes.MAIN
+                            if (state.currentUser != null) Routes.MAIN else Routes.SIGN_IN
                         ) { popUpTo(Routes.SPLASH) { inclusive = true } }
                     }
                 }
