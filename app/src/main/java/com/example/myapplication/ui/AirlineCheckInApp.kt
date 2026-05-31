@@ -435,442 +435,111 @@ fun AirlineCheckInApp(
 //  SPLASH — Luxury depth particles + metallic gold sweep + horizon
 // ═══════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════
+//  SPLASH — Brand-first, restrained (Lufthansa / AF style)
+// ═══════════════════════════════════════════════════════════════
+
 @Composable
 private fun SplashScreen(onFinished: () -> Unit) {
-    // Phase animatables
-    val trailProg     = remember { Animatable(0f) }   // gold meteor sweeps in
-    val burstAlpha    = remember { Animatable(0f) }   // light flash at impact
-    val burstRadius   = remember { Animatable(0f) }
-    val ringExpand    = remember { Animatable(0f) }   // expanding gold rings (shock waves)
-    val emblemAlpha   = remember { Animatable(0f) }   // emblem appears
-    val emblemScale   = remember { Animatable(0.4f) }
-    val emblemRot     = remember { Animatable(-180f) }
-    val wordmarkScale = remember { Animatable(0.6f) }
-    val wordmarkAlpha = remember { Animatable(0f) }
-    val underlineProg = remember { Animatable(0f) }
-    val taglineAlpha  = remember { Animatable(0f) }
-    val flagAlpha     = remember { Animatable(0f) }
-
-    // Continuous shimmer + particles
-    val anim = rememberInfiniteTransition(label = "splash")
-    val shimmerX by anim.animateFloat(
-        initialValue = -1.5f, targetValue = 2.5f,
-        animationSpec = infiniteRepeatable(animation = tween(3000, easing = LinearEasing)),
-        label = "shim"
-    )
-    val particleTime by anim.animateFloat(
-        initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(animation = tween(11000, easing = LinearEasing)),
-        label = "pt"
-    )
-    val emblemSpin by anim.animateFloat(
-        initialValue = 0f, targetValue = 360f,
-        animationSpec = infiniteRepeatable(animation = tween(14000, easing = LinearEasing)),
-        label = "spin"
-    )
-
-    // Constellation particles — different depths
-    data class Particle(val x: Float, val y: Float, val r: Float, val speed: Float, val depth: Float)
-    val particles = remember {
-        val rng = kotlin.random.Random(12345)
-        List(70) {
-            Particle(
-                x = rng.nextFloat(),
-                y = rng.nextFloat(),
-                r = rng.nextFloat() * 1.3f + 0.3f,
-                speed = rng.nextFloat() * 0.4f + 0.2f,
-                depth = rng.nextFloat()
-            )
-        }
-    }
+    val titleAlpha    = remember { Animatable(0f) }
+    val titleY        = remember { Animatable(8f) }
+    val subtitleAlpha = remember { Animatable(0f) }
+    val brandAlpha    = remember { Animatable(0f) }
+    val ruleProg      = remember { Animatable(0f) }
 
     LaunchedEffect(Unit) {
-        // Phase 1 (0-1100ms) — Gold meteor streaks across screen toward center
-        launch { trailProg.animateTo(1f, tween(1100, easing = FastOutSlowInEasing)) }
-        // Phase 2 (~900ms) — Impact burst flares
-        launch {
-            delay(900L)
-            launch { burstAlpha.animateTo(1f, tween(180)) }
-            launch { burstRadius.animateTo(1f, tween(450, easing = FastOutSlowInEasing)) }
-            delay(380L)
-            burstAlpha.animateTo(0f, tween(400))
-        }
-        // Phase 3 (1000-1600ms) — Shockwave gold ring expands outward
-        launch {
-            delay(1000L)
-            ringExpand.animateTo(1f, tween(900, easing = FastOutSlowInEasing))
-        }
-        // Phase 4 (1100-1700ms) — Emblem materializes (rotation + scale)
-        launch {
-            delay(1100L)
-            launch { emblemAlpha.animateTo(1f, tween(500)) }
-            launch { emblemScale.animateTo(1f, tween(800, easing = EaseOutBack)) }
-            launch { emblemRot.animateTo(0f, tween(900, easing = FastOutSlowInEasing)) }
-        }
-        // Phase 5 (1500-2100ms) — Wordmark expands with shimmer
-        launch {
-            delay(1500L)
-            launch { wordmarkAlpha.animateTo(1f, tween(500)) }
-            launch { wordmarkScale.animateTo(1f, tween(700, easing = EaseOutBack)) }
-        }
-        // Phase 6 (1900-2400ms) — Underline draws
-        launch {
-            delay(1900L)
-            underlineProg.animateTo(1f, tween(600, easing = FastOutSlowInEasing))
-        }
-        // Phase 7 — Tagline + flag
-        launch { taglineAlpha.animateTo(1f, tween(500, delayMillis = 2200)) }
-        launch { flagAlpha.animateTo(1f, tween(500, delayMillis = 2400)) }
-
-        delay(3200)
+        launch { titleAlpha.animateTo(1f, tween(550, easing = FastOutSlowInEasing)) }
+        launch { titleY.animateTo(0f, tween(650, easing = FastOutSlowInEasing)) }
+        launch { ruleProg.animateTo(1f, tween(600, delayMillis = 350, easing = FastOutSlowInEasing)) }
+        launch { subtitleAlpha.animateTo(1f, tween(450, delayMillis = 500)) }
+        launch { brandAlpha.animateTo(1f, tween(400, delayMillis = 1100)) }
+        delay(1900)
         onFinished()
     }
 
     Box(
-        modifier = Modifier.fillMaxSize().background(
-            Brush.verticalGradient(
-                listOf(Color(0xFF02180F), Color(0xFF04261A), Color(0xFF062E20), Color(0xFF02180F))
-            )
-        ),
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center
     ) {
-        // ── Layer 1: Drifting depth particles ──
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            particles.forEach { p ->
-                val driftY = (particleTime * p.speed) % 1f
-                val y = ((p.y - driftY + 1f) % 1f) * size.height
-                val x = p.x * size.width + kotlin.math.sin((particleTime * 6.28f + p.x * 10f).toDouble()).toFloat() * 7f
-                val alpha = (0.12f + p.depth * 0.50f)
-                val radius = (p.r * (0.6f + p.depth * 1.1f)).dp.toPx()
-                drawCircle(
-                    color = if (p.depth > 0.72f) LiquidGold.copy(alpha = alpha)
-                            else Color.White.copy(alpha = alpha * 0.55f),
-                    radius = radius,
-                    center = Offset(x, y)
-                )
-                if (p.depth > 0.88f) {
-                    drawCircle(LiquidGold.copy(alpha = alpha * 0.30f), radius * 2.4f, Offset(x, y))
-                }
-            }
-            // Vignette anchored at impact point
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)),
-                    center = Offset(size.width / 2, size.height * 0.48f),
-                    radius = size.maxDimension * 0.7f
-                ),
-                radius = size.maxDimension * 0.7f,
-                center = Offset(size.width / 2, size.height * 0.48f)
-            )
-        }
-
-        // ── Layer 2: Gold meteor trail (Bezier curve from off-screen-bottom-left to center) ──
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val centerX = size.width / 2
-            val centerY = size.height * 0.48f
-            val startX = -size.width * 0.15f
-            val startY = size.height * 1.05f
-
-            val prog = trailProg.value
-            if (prog > 0f && prog < 1f) {
-                // Trail tail (soft fading curve segments)
-                val steps = 22
-                for (i in 0..steps) {
-                    val t1 = (prog - (i / steps.toFloat()) * 0.32f).coerceIn(0f, 1f)
-                    if (t1 <= 0f) break
-                    val t2 = (t1 - (1f / steps.toFloat()) * 0.32f).coerceIn(0f, 1f)
-
-                    fun pt(t: Float): Offset {
-                        // Quadratic Bezier curve
-                        val ctrlX = size.width * 0.15f
-                        val ctrlY = size.height * 0.30f
-                        val x = (1 - t).let { it * it } * startX + 2 * (1 - t) * t * ctrlX + t * t * centerX
-                        val y = (1 - t).let { it * it } * startY + 2 * (1 - t) * t * ctrlY + t * t * centerY
-                        return Offset(x, y)
-                    }
-
-                    val p1 = pt(t1)
-                    val p2 = pt(t2)
-                    val alpha = ((1f - i / steps.toFloat()) * 0.55f).coerceAtLeast(0f)
-                    val width = (4f - i * 0.13f).coerceAtLeast(0.6f)
-                    drawLine(
-                        color = LiquidGold.copy(alpha = alpha),
-                        start = p1, end = p2,
-                        strokeWidth = width.dp.toPx(),
-                        cap = StrokeCap.Round
-                    )
-                    // Outer glow on first few segments
-                    if (i < 6) {
-                        drawLine(
-                            color = LiquidGold.copy(alpha = alpha * 0.3f),
-                            start = p1, end = p2,
-                            strokeWidth = (width + 4f).dp.toPx(),
-                            cap = StrokeCap.Round
-                        )
-                    }
-                }
-                // The meteor head — bright gold dot
-                fun pt(t: Float): Offset {
-                    val ctrlX = size.width * 0.15f
-                    val ctrlY = size.height * 0.30f
-                    val x = (1 - t).let { it * it } * startX + 2 * (1 - t) * t * ctrlX + t * t * centerX
-                    val y = (1 - t).let { it * it } * startY + 2 * (1 - t) * t * ctrlY + t * t * centerY
-                    return Offset(x, y)
-                }
-                val head = pt(prog)
-                drawCircle(LiquidGold.copy(alpha = 0.4f), 14.dp.toPx(), head)
-                drawCircle(LiquidGold.copy(alpha = 0.85f), 7.dp.toPx(), head)
-                drawCircle(Color(0xFFFFFBEB), 3.dp.toPx(), head)
-            }
-
-            // ── Impact burst flash at the meeting point ──
-            if (burstAlpha.value > 0f) {
-                val r = burstRadius.value * 80f
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            Color(0xFFFFFBEB).copy(alpha = burstAlpha.value),
-                            LiquidGold.copy(alpha = burstAlpha.value * 0.7f),
-                            LiquidGold.copy(alpha = burstAlpha.value * 0.2f),
-                            Color.Transparent
-                        ),
-                        center = Offset(centerX, centerY),
-                        radius = r.dp.toPx().coerceAtLeast(20f)
-                    ),
-                    radius = r.dp.toPx().coerceAtLeast(20f),
-                    center = Offset(centerX, centerY)
-                )
-            }
-
-            // ── Shockwave ring (expands outward from impact) ──
-            if (ringExpand.value > 0f && ringExpand.value < 1f) {
-                val ringR = (40f + ringExpand.value * 200f).dp.toPx()
-                drawCircle(
-                    color = LiquidGold.copy(alpha = (1f - ringExpand.value) * 0.55f),
-                    radius = ringR,
-                    center = Offset(centerX, centerY),
-                    style = Stroke(1.4f)
-                )
-                // Second ring (delayed)
-                val ring2 = (ringExpand.value - 0.2f).coerceAtLeast(0f)
-                if (ring2 > 0f) {
-                    val ringR2 = (40f + ring2 * 240f).dp.toPx()
-                    drawCircle(
-                        color = LiquidGold.copy(alpha = (1f - ring2) * 0.35f),
-                        radius = ringR2,
-                        center = Offset(centerX, centerY),
-                        style = Stroke(0.8f)
-                    )
-                }
-            }
-        }
-
-        // ── Wordmark + emblem column ──
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            // Emblem with rotating gold ring + airplane
-            Box(
-                modifier = Modifier
-                    .size(116.dp)
-                    .graphicsLayer {
-                        alpha = emblemAlpha.value
-                        scaleX = emblemScale.value; scaleY = emblemScale.value
-                        rotationZ = emblemRot.value
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Canvas(modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { rotationZ = emblemSpin }
-                ) {
-                    val cx = size.width / 2; val cy = size.height / 2
-                    drawCircle(LiquidGold.copy(alpha = 0.06f), size.minDimension / 2 + 16.dp.toPx(), Offset(cx, cy))
-                    drawCircle(LiquidGold.copy(alpha = 0.10f), size.minDimension / 2 + 6.dp.toPx(),  Offset(cx, cy))
-                    // Outer ring with gold gradient stroke (slowly rotating)
-                    drawCircle(LiquidGold.copy(alpha = 0.85f), size.minDimension / 2.05f, Offset(cx, cy), style = Stroke(1.5f))
-                    // Dashed inner ring (slow rotation)
-                    val dashLen = 8f
-                    val gapLen  = 6f
-                    val innerR  = size.minDimension / 2.4f
-                    val circumference = 2 * kotlin.math.PI * innerR
-                    val dashCount = (circumference / (dashLen + gapLen)).toInt()
-                    for (i in 0 until dashCount) {
-                        val angle1 = (i * (dashLen + gapLen) / innerR)
-                        val angle2 = angle1 + (dashLen / innerR)
-                        drawArc(
-                            color = Color(0xFFE6C46B).copy(alpha = 0.6f),
-                            startAngle = (angle1 * 180.0 / kotlin.math.PI).toFloat(),
-                            sweepAngle = ((angle2 - angle1) * 180.0 / kotlin.math.PI).toFloat(),
-                            useCenter = false,
-                            topLeft = Offset(cx - innerR, cy - innerR),
-                            size = Size(innerR * 2, innerR * 2),
-                            style = Stroke(0.8f)
-                        )
-                    }
-                }
-                Box(
-                    modifier = Modifier.size(82.dp).clip(CircleShape)
-                        .background(Brush.linearGradient(listOf(Color(0xFF064E3B), Color(0xFF02180F))))
-                        .border(1.dp, LiquidGold.copy(alpha = 0.6f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Filled.FlightTakeoff, null,
-                        modifier = Modifier.size(38.dp), tint = Color(0xFFEACD8A))
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Wordmark with metallic gold sweep + scale entrance
-            Box(
+            Text(
+                "MyPass",
+                style = MaterialTheme.typography.displayMedium.copy(
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = (-1.2).sp
+                ),
+                color = EmeraldGreen,
                 modifier = Modifier.graphicsLayer {
-                    alpha = wordmarkAlpha.value
-                    scaleX = wordmarkScale.value; scaleY = wordmarkScale.value
-                },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    "MyPass",
-                    style = MaterialTheme.typography.displayMedium.copy(
-                        fontWeight    = FontWeight.Black,
-                        letterSpacing = (-1.6).sp,
-                        brush = Brush.horizontalGradient(
-                            colors = listOf(
-                                Color(0xFFE8DAB1),
-                                Color(0xFFD4AF37),
-                                Color(0xFFFFFBEB),
-                                Color(0xFFD4AF37),
-                                Color(0xFFE8DAB1)
-                            ),
-                            startX = (shimmerX - 0.4f) * 600f,
-                            endX   = (shimmerX + 0.4f) * 600f
-                        )
-                    )
-                )
-            }
+                    alpha = titleAlpha.value
+                    translationY = titleY.value
+                }
+            )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Underline draws across
-            Canvas(modifier = Modifier.width(180.dp).height(2.dp)) {
-                val w = size.width * underlineProg.value
-                val centerX = size.width / 2
-                val halfW = w / 2
+            Canvas(modifier = Modifier.width(48.dp).height(1.dp)) {
+                val w = size.width * ruleProg.value
                 drawLine(
-                    brush = Brush.horizontalGradient(
-                        listOf(Color.Transparent, LiquidGold, Color(0xFFFFE9A8), LiquidGold, Color.Transparent)
-                    ),
-                    start = Offset(centerX - halfW, size.height / 2),
-                    end   = Offset(centerX + halfW, size.height / 2),
-                    strokeWidth = 1.5f, cap = StrokeCap.Round
+                    color = EmeraldGreen.copy(alpha = 0.7f),
+                    start = Offset((size.width - w) / 2f, size.height / 2),
+                    end   = Offset((size.width + w) / 2f, size.height / 2),
+                    strokeWidth = 1.2f,
+                    cap = StrokeCap.Round
                 )
             }
 
             Spacer(modifier = Modifier.height(14.dp))
 
             Text(
-                "ALGERIAN  ·  AVIATION",
-                style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 4.5.sp),
-                color = Color(0xFFE8DAB1).copy(alpha = 0.78f),
+                "DIGITAL CHECK-IN",
+                style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 3.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.Medium,
-                modifier = Modifier.graphicsLayer { alpha = taglineAlpha.value }
+                modifier = Modifier.graphicsLayer { alpha = subtitleAlpha.value }
             )
         }
 
-        // ── Bottom: Algerian flag ──
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 40.dp)
-                .graphicsLayer { alpha = flagAlpha.value },
+                .graphicsLayer { alpha = brandAlpha.value },
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             AlgerianFlag(
                 modifier = Modifier
-                    .size(width = 24.dp, height = 16.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .border(0.4.dp, LiquidGold.copy(alpha = 0.5f), RoundedCornerShape(2.dp))
+                    .size(width = 18.dp, height = 12.dp)
+                    .clip(RoundedCornerShape(1.dp))
+                    .border(0.4.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(1.dp))
             )
             Text(
-                "MADE IN ALGERIA",
+                "AIR ALGÉRIE",
                 style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp),
-                color = Color(0xFFE8DAB1).copy(alpha = 0.55f),
-                fontWeight = FontWeight.Medium
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.SemiBold
             )
         }
     }
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  AUTH — Sign In + Sign Up (separate screens with shared luxury hero)
+//  AUTH — Sign In + Sign Up (clean, no decorative hero)
 // ═══════════════════════════════════════════════════════════════
 
-/** Shared luxury hero — deep emerald + depth particles + gold emblem */
+/** Refined top bar header — clean, no gradients, no particles. */
 @Composable
 private fun AuthLuxeHero(
     title: String,
     subtitle: String,
     onBack: (() -> Unit)? = null
 ) {
-    val deepEmerald = Color(0xFF04261A)
-
-    val anim = rememberInfiniteTransition(label = "heroAnim")
-    val particleTime by anim.animateFloat(
-        initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(animation = tween(12000, easing = LinearEasing)),
-        label = "ap"
-    )
-
-    data class HParticle(val x: Float, val y: Float, val r: Float, val speed: Float, val depth: Float)
-    val particles = remember {
-        val rng = kotlin.random.Random(7777)
-        List(36) {
-            HParticle(rng.nextFloat(), rng.nextFloat(),
-                rng.nextFloat() * 1.2f + 0.3f,
-                rng.nextFloat() * 0.4f + 0.2f,
-                rng.nextFloat())
-        }
-    }
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .fillMaxHeight(0.32f)
-            .background(
-                Brush.verticalGradient(
-                    listOf(Color(0xFF02180F), Color(0xFF04261A), Color(0xFF062E20))
-                )
-            )
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        // Ambient particle field — pure atmosphere, no central focal element
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            particles.forEach { p ->
-                val drift = (particleTime * p.speed) % 1f
-                val y = ((p.y - drift + 1f) % 1f) * size.height
-                val x = p.x * size.width + kotlin.math.sin((particleTime * 6.28f + p.x * 8f).toDouble()).toFloat() * 6f
-                val alpha = 0.12f + p.depth * 0.45f
-                val radius = (p.r * (0.5f + p.depth)).dp.toPx()
-                drawCircle(
-                    color = if (p.depth > 0.7f) LiquidGold.copy(alpha = alpha)
-                            else Color.White.copy(alpha = alpha * 0.55f),
-                    radius = radius,
-                    center = Offset(x, y)
-                )
-                if (p.depth > 0.85f) {
-                    drawCircle(LiquidGold.copy(alpha = alpha * 0.25f), radius * 2.2f, Offset(x, y))
-                }
-            }
-            // Soft vignette to anchor the sheet card visually
-            drawRect(
-                brush = Brush.verticalGradient(
-                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.35f)),
-                    startY = size.height * 0.5f,
-                    endY = size.height
-                )
-            )
-        }
-
-        // Refined top bar — only branding element
         Row(
             modifier = Modifier.fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.statusBars)
@@ -878,50 +547,53 @@ private fun AuthLuxeHero(
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (onBack != null) {
-                Box(
-                    modifier = Modifier.size(40.dp).clip(CircleShape)
-                        .background(Color.White.copy(0.10f))
-                        .border(0.5.dp, LiquidGold.copy(0.4f), CircleShape)
-                        .clickable(onClick = onBack),
-                    contentAlignment = Alignment.Center
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, null,
-                        tint = Color(0xFFE8DAB1), modifier = Modifier.size(20.dp))
+                        tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
                 }
                 Spacer(modifier = Modifier.width(12.dp))
-            } else {
-                Box(
-                    modifier = Modifier.size(36.dp).clip(CircleShape)
-                        .background(Brush.radialGradient(listOf(Color(0xFFD4AF37), Color(0xFFB8860B))))
-                        .border(0.8.dp, Color(0xFFFFE9A8).copy(0.5f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Filled.FlightTakeoff, null,
-                        tint = deepEmerald, modifier = Modifier.size(18.dp))
-                }
-                Spacer(modifier = Modifier.width(10.dp))
             }
-            Text("MyPass",
+            Text(
+                "MyPass",
                 style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.Black, letterSpacing = (-0.4).sp,
-                    brush = Brush.horizontalGradient(
-                        listOf(Color(0xFFFFFBEB), Color(0xFFE8DAB1))
-                    )
-                ))
+                    fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp
+                ),
+                color = EmeraldGreen
+            )
             Spacer(modifier = Modifier.weight(1f))
             AlgerianFlag(
                 modifier = Modifier
-                    .size(width = 26.dp, height = 17.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .border(0.4.dp, LiquidGold.copy(0.5f), RoundedCornerShape(2.dp))
+                    .size(width = 22.dp, height = 14.dp)
+                    .clip(RoundedCornerShape(1.dp))
+                    .border(0.4.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(1.dp))
             )
         }
-
-        // Hero space intentionally left atmospheric — focal content lives in the sheet card
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(horizontal = 24.dp, vertical = 24.dp)
+        ) {
+            Text(
+                title,
+                style = MaterialTheme.typography.displaySmall.copy(
+                    fontWeight = FontWeight.Black, letterSpacing = (-1).sp
+                ),
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 
-/** Reusable luxury sheet wrapper that slides up from below the hero */
+/** Clean sheet wrapper — no gold top line, just a hairline. */
 @Composable
 private fun AuthLuxeSheet(content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
     var visible by remember { mutableStateOf(false) }
@@ -938,11 +610,12 @@ private fun AuthLuxeSheet(content: @Composable androidx.compose.foundation.layou
             modifier = Modifier.fillMaxWidth().fillMaxHeight()
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
-                Canvas(modifier = Modifier.fillMaxWidth().height(2.dp).align(Alignment.TopCenter)) {
-                    drawRect(Brush.horizontalGradient(
-                        listOf(Color.Transparent, LiquidGold.copy(0.5f), LiquidGold, LiquidGold.copy(0.5f), Color.Transparent)
-                    ))
-                }
+                // Hairline divider (replaces decorative gold strip)
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    thickness = 0.5.dp,
+                    modifier = Modifier.align(Alignment.TopCenter)
+                )
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -965,7 +638,7 @@ private fun AuthLuxeSheet(content: @Composable androidx.compose.foundation.layou
     }
 }
 
-/** Luxury primary action button — deep emerald gradient + gold edge + shimmer */
+/** Primary action button — solid brand color, no shimmer. */
 @Composable
 private fun LuxButton(
     text: String,
@@ -974,52 +647,26 @@ private fun LuxButton(
     loading: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val deepEmerald = Color(0xFF04261A)
-    val anim = rememberInfiniteTransition(label = "btnShim")
-    val shimmerX by anim.animateFloat(
-        initialValue = -1.5f, targetValue = 2.5f,
-        animationSpec = infiniteRepeatable(animation = tween(3200, easing = LinearEasing)),
-        label = "bsh"
-    )
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(54.dp)
-            .shadow(8.dp, RoundedCornerShape(14.dp),
-                ambientColor = deepEmerald.copy(0.4f),
-                spotColor = deepEmerald.copy(0.4f))
-            .clip(RoundedCornerShape(14.dp))
-            .background(
-                if (enabled) Brush.linearGradient(listOf(deepEmerald, Color(0xFF064E3B), Color(0xFF02180F)))
-                else         Brush.linearGradient(listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant))
-            )
-            .border(0.8.dp,
-                if (enabled) LiquidGold.copy(0.5f) else MaterialTheme.colorScheme.outlineVariant,
-                RoundedCornerShape(14.dp))
-            .clickable(enabled = enabled && !loading, onClick = onClick),
-        contentAlignment = Alignment.Center
+    Button(
+        onClick = onClick,
+        enabled = enabled && !loading,
+        modifier = modifier.fillMaxWidth().height(52.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = EmeraldGreen,
+            contentColor = PureWhite,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            disabledContentColor = MaterialTheme.colorScheme.outline
+        ),
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 1.dp)
     ) {
-        if (enabled) {
-            Canvas(modifier = Modifier.matchParentSize()) {
-                val sx = (shimmerX - 0.4f) * size.width
-                drawRect(Brush.horizontalGradient(
-                    listOf(Color.Transparent, LiquidGold.copy(alpha = 0.18f), Color.Transparent),
-                    startX = sx, endX = sx + 200f
-                ))
-            }
-        }
         if (loading) {
-            CircularProgressIndicator(color = LiquidGold, strokeWidth = 2.dp,
-                modifier = Modifier.size(20.dp))
+            CircularProgressIndicator(color = PureWhite, strokeWidth = 2.dp,
+                modifier = Modifier.size(18.dp))
         } else {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(text,
-                    style = MaterialTheme.typography.titleSmall.copy(letterSpacing = 0.5.sp),
-                    fontWeight = FontWeight.Bold,
-                    color = if (enabled) Color(0xFFFFFBEB) else MaterialTheme.colorScheme.outline)
-                if (enabled) Icon(Icons.AutoMirrored.Filled.ArrowForward, null,
-                    tint = LiquidGold, modifier = Modifier.size(18.dp))
-            }
+            Text(text,
+                style = MaterialTheme.typography.titleMedium.copy(letterSpacing = 0.2.sp),
+                fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -1279,58 +926,30 @@ private fun PrimaryButton(
     modifier: Modifier = Modifier,
     leadingIcon: ImageVector? = null
 ) {
-    val deepEmerald = Color(0xFF04261A)
-    val anim = rememberInfiniteTransition(label = "primShim")
-    val shimmerX by anim.animateFloat(
-        initialValue = -1.5f, targetValue = 2.5f,
-        animationSpec = infiniteRepeatable(animation = tween(3500, easing = LinearEasing)),
-        label = "psh"
-    )
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(52.dp)
-            .shadow(if (enabled) 8.dp else 0.dp, RoundedCornerShape(14.dp),
-                ambientColor = deepEmerald.copy(0.4f),
-                spotColor = deepEmerald.copy(0.4f))
-            .clip(RoundedCornerShape(14.dp))
-            .background(
-                if (enabled) Brush.linearGradient(listOf(deepEmerald, Color(0xFF064E3B), Color(0xFF02180F)))
-                else         Brush.linearGradient(listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant))
-            )
-            .border(0.8.dp,
-                if (enabled) LiquidGold.copy(0.5f) else MaterialTheme.colorScheme.outlineVariant,
-                RoundedCornerShape(14.dp))
-            .clickable(enabled = enabled && !loading, onClick = onClick),
-        contentAlignment = Alignment.Center
+    Button(
+        onClick = onClick,
+        enabled = enabled && !loading,
+        modifier = modifier.fillMaxWidth().height(52.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = EmeraldGreen,
+            contentColor   = PureWhite,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            disabledContentColor   = MaterialTheme.colorScheme.outline
+        ),
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 1.dp)
     ) {
-        if (enabled) {
-            Canvas(modifier = Modifier.matchParentSize()) {
-                val sx = (shimmerX - 0.4f) * size.width
-                drawRect(Brush.horizontalGradient(
-                    listOf(Color.Transparent, LiquidGold.copy(alpha = 0.16f), Color.Transparent),
-                    startX = sx, endX = sx + 200f
-                ))
-            }
-        }
         if (loading) {
-            CircularProgressIndicator(color = LiquidGold, strokeWidth = 2.dp,
-                modifier = Modifier.size(20.dp))
+            CircularProgressIndicator(color = PureWhite, strokeWidth = 2.dp,
+                modifier = Modifier.size(18.dp))
         } else {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (leadingIcon != null) {
-                    Icon(leadingIcon, null, modifier = Modifier.size(18.dp),
-                        tint = if (enabled) LiquidGold else MaterialTheme.colorScheme.outline)
-                }
-                Text(text,
-                    style = MaterialTheme.typography.titleSmall.copy(letterSpacing = 0.4.sp),
-                    fontWeight = FontWeight.Bold,
-                    color = if (enabled) Color(0xFFFFFBEB) else MaterialTheme.colorScheme.outline)
-                if (leadingIcon == null && enabled) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowForward, null,
-                        tint = LiquidGold, modifier = Modifier.size(16.dp))
-                }
+            if (leadingIcon != null) {
+                Icon(leadingIcon, null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
             }
+            Text(text,
+                style = MaterialTheme.typography.titleMedium.copy(letterSpacing = 0.2.sp),
+                fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -1353,27 +972,22 @@ private fun SecondaryButton(
     }
 }
 
-/** Tiny luxury section accent — gold mark next to titles */
+/** Section accent — single emerald bar next to titles (no gradient). */
 @Composable
 private fun GoldAccent(modifier: Modifier = Modifier) {
     Box(modifier = modifier
         .width(3.dp).height(20.dp)
         .clip(RoundedCornerShape(1.5.dp))
-        .background(Brush.verticalGradient(listOf(LiquidGold, Color(0xFF8B6914)))))
+        .background(EmeraldGreen))
 }
 
 @Composable
 private fun GoldDivider(modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier.fillMaxWidth().height(1.dp)) {
-        drawLine(
-            brush = Brush.horizontalGradient(
-                listOf(Color.Transparent, LiquidGold.copy(0.5f), LiquidGold.copy(0.5f), Color.Transparent)
-            ),
-            start = Offset(0f, 0.5f),
-            end   = Offset(size.width, 0.5f),
-            strokeWidth = 0.8f
-        )
-    }
+    HorizontalDivider(
+        modifier = modifier.fillMaxWidth(),
+        thickness = 0.5.dp,
+        color = MaterialTheme.colorScheme.outlineVariant
+    )
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1394,16 +1008,11 @@ private fun MainScaffold(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            Box {
-                // Gold accent line at top of nav bar
-                Canvas(modifier = Modifier.fillMaxWidth().height(1.dp).align(Alignment.TopCenter)) {
-                    drawRect(Brush.horizontalGradient(
-                        listOf(Color.Transparent, LiquidGold.copy(0.4f), LiquidGold.copy(0.4f), Color.Transparent)
-                    ))
-                }
+            Column {
+                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
                 NavigationBar(
                     containerColor = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 8.dp
+                    tonalElevation = 0.dp
                 ) {
                     LuxNavItem(selected = tab == 0, icon = Icons.Filled.Home,
                         label = "Home", onClick = { tab = 0 })
@@ -1414,24 +1023,20 @@ private fun MainScaffold(
                         onClick = onStartCheckIn,
                         icon = {
                             Box(
-                                modifier = Modifier.size(48.dp)
-                                    .shadow(6.dp, CircleShape,
-                                        ambientColor = Color(0xFF04261A).copy(0.5f),
-                                        spotColor = Color(0xFF04261A).copy(0.5f))
+                                modifier = Modifier.size(44.dp)
                                     .clip(CircleShape)
-                                    .background(Brush.radialGradient(listOf(EmeraldGreen, Color(0xFF02180F))))
-                                    .border(1.dp, LiquidGold.copy(0.6f), CircleShape),
+                                    .background(EmeraldGreen),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(Icons.Filled.QrCodeScanner, null,
-                                    tint = LiquidGold, modifier = Modifier.size(22.dp))
+                                    tint = PureWhite, modifier = Modifier.size(20.dp))
                             }
                         },
                         label = {
                             Text("Check-in",
-                                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.4.sp),
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = FontWeight.SemiBold)
+                                fontWeight = FontWeight.Medium)
                         }
                     )
                     LuxNavItem(selected = tab == 2, icon = Icons.Outlined.Place,
@@ -1464,19 +1069,7 @@ private fun androidx.compose.foundation.layout.RowScope.LuxNavItem(
     NavigationBarItem(
         selected = selected,
         onClick = onClick,
-        icon = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(icon, null, modifier = Modifier.size(22.dp))
-                if (selected) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Box(
-                        modifier = Modifier.size(width = 14.dp, height = 1.5.dp)
-                            .clip(RoundedCornerShape(1.dp))
-                            .background(LiquidGold)
-                    )
-                }
-            }
-        },
+        icon = { Icon(icon, null, modifier = Modifier.size(22.dp)) },
         label = {
             Text(label,
                 style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.4.sp),
@@ -3203,36 +2796,28 @@ private fun BoardingPassScreen(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface)
                     }
-                    // Add to Wallet — luxury gradient with wallet icon
-                    val deepEmerald = Color(0xFF04261A)
-                    Box(
-                        modifier = Modifier
-                            .weight(1f).height(50.dp)
-                            .shadow(8.dp, RoundedCornerShape(14.dp),
-                                ambientColor = deepEmerald.copy(0.4f), spotColor = deepEmerald.copy(0.4f))
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Brush.linearGradient(listOf(deepEmerald, Color(0xFF064E3B), Color(0xFF02180F))))
-                            .border(0.8.dp, LiquidGold.copy(0.5f), RoundedCornerShape(14.dp))
-                            .clickable {
-                                scope.launch {
-                                    try {
-                                        val fileName = vm.saveBoardingPassPdf(context, pass)
-                                        vm.showMessage("Added to Wallet • $fileName")
-                                    } catch (e: Exception) {
-                                        vm.showMessage("Failed: ${e.message}")
-                                    }
+                    // Add to Wallet — solid brand button
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                try {
+                                    val fileName = vm.saveBoardingPassPdf(context, pass)
+                                    vm.showMessage("Added to Wallet • $fileName")
+                                } catch (e: Exception) {
+                                    vm.showMessage("Failed: ${e.message}")
                                 }
-                            },
-                        contentAlignment = Alignment.Center
+                            }
+                        },
+                        modifier = Modifier.weight(1f).height(50.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen, contentColor = PureWhite),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(Icons.Filled.AccountBalanceWallet, null,
-                                tint = LiquidGold, modifier = Modifier.size(20.dp))
-                            Text("Add to Wallet",
-                                style = MaterialTheme.typography.titleSmall.copy(letterSpacing = 0.3.sp),
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFFFFBEB))
-                        }
+                        Icon(Icons.Filled.AccountBalanceWallet, null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Add to Wallet",
+                            style = MaterialTheme.typography.titleSmall.copy(letterSpacing = 0.2.sp),
+                            fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -3286,80 +2871,43 @@ private fun CleanBoardingPassCard(
     pass: com.example.myapplication.model.BoardingPass,
     qrBitmap: android.graphics.Bitmap
 ) {
-    val cream    = Color(0xFFFAF7F0)
-    val charcoal = Color(0xFF1A1A1A)
-    val deepEmerald = Color(0xFF04261A)
+    val charcoal = Color(0xFF111827)
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape    = RoundedCornerShape(22.dp),
-        colors   = CardDefaults.cardColors(containerColor = cream),
-        elevation= CardDefaults.cardElevation(10.dp)
+        shape    = RoundedCornerShape(16.dp),
+        colors   = CardDefaults.cardColors(containerColor = PureWhite),
+        elevation= CardDefaults.cardElevation(2.dp),
+        border   = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // ── Luxury Header — deep emerald with subtle pattern + gold seal ──
+            // ── Header — single solid brand color, refined typography ──
             Box(modifier = Modifier.fillMaxWidth()
-                .background(Brush.linearGradient(
-                    listOf(deepEmerald, Color(0xFF064E3B), Color(0xFF02180F))
-                ))
-                .padding(horizontal = 24.dp, vertical = 22.dp)
+                .background(EmeraldGreen)
+                .padding(horizontal = 24.dp, vertical = 18.dp)
             ) {
-                // Watermark pattern: subtle gold diamonds
-                Canvas(modifier = Modifier.matchParentSize()) {
-                    val gold = LiquidGold.copy(alpha = 0.04f)
-                    val sp = 28f
-                    for (i in -2..(size.width / sp).toInt() + 2) {
-                        for (j in -2..(size.height / sp).toInt() + 2) {
-                            val cx = i * sp + (if (j % 2 == 0) 0f else sp / 2)
-                            val cy = j * sp
-                            val r = 2f
-                            drawLine(gold, Offset(cx, cy - r), Offset(cx + r, cy), 0.6f)
-                            drawLine(gold, Offset(cx + r, cy), Offset(cx, cy + r), 0.6f)
-                            drawLine(gold, Offset(cx, cy + r), Offset(cx - r, cy), 0.6f)
-                            drawLine(gold, Offset(cx - r, cy), Offset(cx, cy - r), 0.6f)
-                        }
-                    }
-                }
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    // Gold seal with crescent — Algerian touch (no airline name)
-                    Box(
-                        modifier = Modifier.size(44.dp).clip(CircleShape)
-                            .background(Brush.radialGradient(listOf(Color(0xFFD4AF37), Color(0xFFB8860B))))
-                            .border(1.dp, Color(0xFFFFE9A8).copy(alpha = 0.5f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Filled.FlightTakeoff, null,
-                            tint = deepEmerald, modifier = Modifier.size(22.dp))
-                    }
-                    Spacer(modifier = Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("MyPass",
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.Black, letterSpacing = (-0.3).sp,
-                                brush = Brush.horizontalGradient(
-                                    listOf(Color(0xFFFFFBEB), Color(0xFFE8DAB1))
-                                )
-                            ))
-                        Text("BOARDING PASS",
-                            style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 2.4.sp),
-                            color = Color(0xFFE8DAB1).copy(alpha = 0.78f),
+                        Text("AIR ALGÉRIE",
+                            style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 2.sp),
+                            color = PureWhite.copy(alpha = 0.85f),
+                            fontWeight = FontWeight.SemiBold)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text("Boarding pass",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = PureWhite,
                             fontWeight = FontWeight.Medium)
                     }
                     Column(horizontalAlignment = Alignment.End) {
-                        Text("FLIGHT", style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.5.sp),
-                            color = Color(0xFFE8DAB1).copy(alpha = 0.6f))
-                        Text(pass.flightNumber, style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Black, color = Color(0xFFFFFBEB))
+                        Text("FLIGHT",
+                            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.5.sp),
+                            color = PureWhite.copy(alpha = 0.7f))
+                        Text(pass.flightNumber,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Black,
+                            color = PureWhite)
                     }
                 }
-            }
-
-            // ── Gold metallic accent line ──
-            Canvas(modifier = Modifier.fillMaxWidth().height(3.dp)) {
-                drawRect(Brush.horizontalGradient(listOf(
-                    Color(0xFF8B6914), Color(0xFFD4AF37), Color(0xFFFFE9A8),
-                    Color(0xFFD4AF37), Color(0xFF8B6914)
-                )))
             }
 
             Column(modifier = Modifier.padding(horizontal = 26.dp, vertical = 24.dp)) {
@@ -3369,7 +2917,7 @@ private fun CleanBoardingPassCard(
                         Text(pass.origin, style = MaterialTheme.typography.displayMedium.copy(
                             fontWeight = FontWeight.Black, letterSpacing = (-2).sp,
                             fontSize = 42.sp
-                        ), color = deepEmerald)
+                        ), color = EmeraldGreen)
                         Text(pass.originCity.uppercase(),
                             style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 1.3.sp),
                             color = charcoal.copy(0.65f), fontWeight = FontWeight.Medium)
@@ -3382,35 +2930,29 @@ private fun CleanBoardingPassCard(
                         modifier = Modifier.weight(0.9f),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        // Gold dotted route line with plane icon
-                        Canvas(modifier = Modifier.fillMaxWidth().height(28.dp)) {
-                            val y = size.height / 2
-                            drawLine(LiquidGold.copy(0.55f), Offset(8f, y), Offset(size.width / 2 - 14f, y),
-                                1.2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.5f, 3.5f)))
-                            drawLine(LiquidGold.copy(0.55f), Offset(size.width / 2 + 14f, y), Offset(size.width - 8f, y),
-                                1.2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.5f, 3.5f)))
-                        }
-                        Spacer(modifier = Modifier.height((-22).dp))
-                        Box(
-                            modifier = Modifier.size(32.dp).clip(CircleShape)
-                                .background(deepEmerald)
-                                .border(1.dp, LiquidGold, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Filled.FlightTakeoff, null,
-                                tint = LiquidGold, modifier = Modifier.size(16.dp))
-                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Icon(Icons.Filled.FlightTakeoff, null,
+                            tint = EmeraldGreen, modifier = Modifier.size(22.dp))
                         Spacer(modifier = Modifier.height(6.dp))
+                        Canvas(modifier = Modifier.fillMaxWidth().height(1.dp)) {
+                            drawLine(
+                                color = charcoal.copy(alpha = 0.2f),
+                                start = Offset(8f, size.height / 2),
+                                end   = Offset(size.width - 8f, size.height / 2),
+                                strokeWidth = 0.8f,
+                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(3f, 3f))
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text("DIRECT",
-                            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp),
-                            color = LiquidGold, fontWeight = FontWeight.Bold)
+                            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.8.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
                     }
                     Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
                         Text(pass.destination, style = MaterialTheme.typography.displayMedium.copy(
                             fontWeight = FontWeight.Black, letterSpacing = (-2).sp,
                             fontSize = 42.sp
-                        ), color = deepEmerald)
+                        ), color = EmeraldGreen)
                         Text(pass.destinationCity.uppercase(),
                             style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 1.3.sp),
                             color = charcoal.copy(0.65f), fontWeight = FontWeight.Medium)
@@ -3423,27 +2965,18 @@ private fun CleanBoardingPassCard(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // ── Refined gold dot divider ──
-                Canvas(modifier = Modifier.fillMaxWidth().height(8.dp)) {
-                    val cy = size.height / 2
-                    val gap = 10f
-                    var x = 4f
-                    while (x < size.width) {
-                        drawCircle(LiquidGold.copy(0.55f), 0.9f, Offset(x, cy))
-                        x += gap
-                    }
-                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
-                // ── Passenger — most prominent on a real boarding pass ──
+                // ── Passenger ──
                 Text("PASSENGER",
-                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp),
-                    color = LiquidGold, fontWeight = FontWeight.Bold)
+                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.8.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
                 Text(pass.passengerName.uppercase(),
                     style = MaterialTheme.typography.headlineSmall.copy(
                         fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp),
-                    color = deepEmerald)
+                    color = EmeraldGreen)
 
                 Spacer(modifier = Modifier.height(22.dp))
 
@@ -3473,19 +3006,15 @@ private fun CleanBoardingPassCard(
                 }
             }
 
-            // ── Perforated tear (luxury with cream + gold tint) ──
+            // ── Perforated tear — clean, neutral ──
             Canvas(modifier = Modifier.fillMaxWidth().height(22.dp)) {
                 val y = size.height / 2
-                drawLine(LiquidGold.copy(0.4f), Offset(28f, y), Offset(size.width - 28f, y),
-                    1.2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(4f, 4f)))
-                drawCircle(deepEmerald.copy(0.06f), 14f, Offset(-3f, y))
-                drawCircle(LiquidGold.copy(0.5f), 14f, Offset(-3f, y), style = Stroke(0.8f))
-                drawCircle(deepEmerald.copy(0.06f), 14f, Offset(size.width + 3f, y))
-                drawCircle(LiquidGold.copy(0.5f), 14f, Offset(size.width + 3f, y), style = Stroke(0.8f))
+                drawLine(charcoal.copy(0.18f), Offset(28f, y), Offset(size.width - 28f, y),
+                    1.0f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(4f, 4f)))
             }
 
             Column(modifier = Modifier.padding(horizontal = 26.dp).padding(top = 4.dp, bottom = 24.dp)) {
-                // ── QR with luxury gold-bordered frame ──
+                // ── QR code — clean, framed by hairline ──
                 Box(
                     modifier = Modifier.fillMaxWidth(),
                     contentAlignment = Alignment.Center
@@ -3493,41 +3022,17 @@ private fun CleanBoardingPassCard(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Box(
                             modifier = Modifier.size(196.dp)
-                                .clip(RoundedCornerShape(12.dp))
+                                .clip(RoundedCornerShape(8.dp))
                                 .background(PureWhite)
-                                .border(1.dp, LiquidGold.copy(0.5f), RoundedCornerShape(12.dp))
+                                .border(0.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
                         ) {
-                            // Inner subtle shadow ring
-                            Canvas(modifier = Modifier.matchParentSize()) {
-                                val r = 12.dp.toPx()
-                                drawRoundRect(
-                                    color = LiquidGold.copy(0.15f),
-                                    topLeft = Offset(4f, 4f),
-                                    size = Size(size.width - 8f, size.height - 8f),
-                                    cornerRadius = CornerRadius(r * 0.7f),
-                                    style = Stroke(0.6f)
-                                )
-                            }
-                            // Gold corner brackets
-                            Canvas(modifier = Modifier.matchParentSize()) {
-                                val len = 14f; val w = 1.5f
-                                val pad = 8f
-                                drawLine(LiquidGold, Offset(pad, pad), Offset(pad + len, pad), w, StrokeCap.Round)
-                                drawLine(LiquidGold, Offset(pad, pad), Offset(pad, pad + len), w, StrokeCap.Round)
-                                drawLine(LiquidGold, Offset(size.width - pad, pad), Offset(size.width - pad - len, pad), w, StrokeCap.Round)
-                                drawLine(LiquidGold, Offset(size.width - pad, pad), Offset(size.width - pad, pad + len), w, StrokeCap.Round)
-                                drawLine(LiquidGold, Offset(pad, size.height - pad), Offset(pad + len, size.height - pad), w, StrokeCap.Round)
-                                drawLine(LiquidGold, Offset(pad, size.height - pad), Offset(pad, size.height - pad - len), w, StrokeCap.Round)
-                                drawLine(LiquidGold, Offset(size.width - pad, size.height - pad), Offset(size.width - pad - len, size.height - pad), w, StrokeCap.Round)
-                                drawLine(LiquidGold, Offset(size.width - pad, size.height - pad), Offset(size.width - pad, size.height - pad - len), w, StrokeCap.Round)
-                            }
                             Image(
                                 bitmap = qrBitmap.asImageBitmap(),
                                 contentDescription = "Boarding QR",
-                                modifier = Modifier.fillMaxSize().padding(20.dp)
+                                modifier = Modifier.fillMaxSize().padding(16.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
                         Text("Scan at gate",
                             style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 1.sp),
                             color = charcoal.copy(0.6f), fontWeight = FontWeight.Medium)
@@ -3536,26 +3041,23 @@ private fun CleanBoardingPassCard(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // ── Footer ornament: gold dots + flag + status ──
+                // ── Footer: Algerian flag + status pill ──
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Canvas(modifier = Modifier.size(width = 20.dp, height = 1.dp)) {
-                            drawLine(LiquidGold, Offset(0f, size.height/2), Offset(size.width, size.height/2), 1f)
-                        }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         AlgerianFlag(modifier = Modifier
                             .size(width = 20.dp, height = 13.dp)
                             .clip(RoundedCornerShape(1.dp))
-                            .border(0.4.dp, LiquidGold.copy(0.5f), RoundedCornerShape(1.dp)))
-                        Canvas(modifier = Modifier.size(width = 20.dp, height = 1.dp)) {
-                            drawLine(LiquidGold, Offset(0f, size.height/2), Offset(size.width, size.height/2), 1f)
-                        }
+                            .border(0.4.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(1.dp)))
+                        Text("AIR ALGÉRIE",
+                            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.8.sp),
+                            color = charcoal.copy(0.6f), fontWeight = FontWeight.SemiBold)
                     }
                     Text(pass.status.uppercase(),
                         style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.5.sp),
-                        color = LiquidGold, fontWeight = FontWeight.Black,
+                        color = EmeraldGreen, fontWeight = FontWeight.Bold,
                         modifier = Modifier.clip(RoundedCornerShape(4.dp))
-                            .border(0.6.dp, LiquidGold, RoundedCornerShape(4.dp))
+                            .background(EmeraldGreen.copy(alpha = 0.10f))
                             .padding(horizontal = 8.dp, vertical = 3.dp))
                 }
             }
@@ -3565,23 +3067,23 @@ private fun CleanBoardingPassCard(
 
 @Composable
 private fun LuxBlock(label: String, value: String, modifier: Modifier = Modifier) {
-    val deepEmerald = Color(0xFF04261A)
+    val charcoal = Color(0xFF111827)
     Column(modifier = modifier.padding(vertical = 4.dp)) {
         Text(label, style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.6.sp),
-            color = LiquidGold, fontWeight = FontWeight.Bold)
+            color = charcoal.copy(alpha = 0.55f), fontWeight = FontWeight.SemiBold)
         Spacer(modifier = Modifier.height(3.dp))
         Text(value, style = MaterialTheme.typography.titleLarge.copy(
             fontWeight = FontWeight.Black, letterSpacing = (-0.3).sp),
-            color = deepEmerald)
+            color = EmeraldGreen)
     }
 }
 
 @Composable
 private fun LuxDivider() {
     Box(modifier = Modifier
-        .width(0.6.dp)
-        .height(40.dp)
-        .background(LiquidGold.copy(0.3f))
+        .width(0.5.dp)
+        .height(36.dp)
+        .background(Color(0xFFE5E7EB))
         .padding(vertical = 4.dp))
 }
 
