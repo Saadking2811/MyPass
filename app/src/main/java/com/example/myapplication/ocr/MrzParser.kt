@@ -134,9 +134,15 @@ object MrzParser {
     private fun parseTd3(line1: String, line2: String, relaxed: Boolean = false): MrzResult? {
         if (line1.length != 44 || line2.length != 44) return null
 
+        // Position-aware normalization fixes per-character OCR confusions.
+        // Numeric MRZ positions (0-8, 13-18, 19, 21-26, 27, 28-41, 42, 43 of line 2)
+        // must be digits — common confusions: O→0, I→1, B→8, S→5, Z→2, A→4
+        // Letter positions (country codes, name) — confusions: 0→O, 1→I, 8→B, 5→S
+        val fixedLine2 = fixLine2Positions(line2)
+
         // ── Line 1 parsing ──
         val docType = line1.substring(0, 2).replace("<", "").ifEmpty { "P" }
-        val issuingCountry = line1.substring(2, 5).replace("<", "")
+        val issuingCountry = fixLetters(line1.substring(2, 5).replace("<", ""))
         val nameField = line1.substring(5)
 
         // Smart filler detection: OCR often misreads runs of '<' as runs of identical
@@ -144,24 +150,24 @@ object MrzParser {
         val sanitizedNameField = recoverFillerFromLetterRuns(nameField)
         val (lastName, firstName) = extractNames(sanitizedNameField)
 
-        // ── Line 2 parsing ──
-        val passportNumber = line2.substring(0, 9).replace("<", "")
-        val passCheckDigit = charToValue(line2[9])
-        val nationality = line2.substring(10, 13).replace("<", "")
-        val dobRaw = line2.substring(13, 19)
-        val dobCheckDigit = charToValue(line2[19])
-        val sex = line2.substring(20, 21)
-        val expiryRaw = line2.substring(21, 27)
-        val expiryCheckDigit = charToValue(line2[27])
-        val personalNumber = line2.substring(28, 42).replace("<", "")
-        val personalCheckDigit = charToValue(line2[42])
-        val compositeCheckDigit = charToValue(line2[43])
+        // ── Line 2 parsing (after digit/letter normalization) ──
+        val passportNumber = fixedLine2.substring(0, 9).replace("<", "")
+        val passCheckDigit = charToValue(fixedLine2[9])
+        val nationality = fixLetters(fixedLine2.substring(10, 13).replace("<", ""))
+        val dobRaw = fixedLine2.substring(13, 19)
+        val dobCheckDigit = charToValue(fixedLine2[19])
+        val sex = fixedLine2.substring(20, 21)
+        val expiryRaw = fixedLine2.substring(21, 27)
+        val expiryCheckDigit = charToValue(fixedLine2[27])
+        val personalNumber = fixedLine2.substring(28, 42).replace("<", "")
+        val personalCheckDigit = charToValue(fixedLine2[42])
+        val compositeCheckDigit = charToValue(fixedLine2[43])
 
-        // ── Check digit verification (ICAO weighted algorithm) ──
-        val passValid = computeCheckDigit(line2.substring(0, 9)) == passCheckDigit
+        // ── Check digit verification (ICAO weighted algorithm) — uses fixed line2 ──
+        val passValid = computeCheckDigit(fixedLine2.substring(0, 9)) == passCheckDigit
         val dobValid = computeCheckDigit(dobRaw) == dobCheckDigit
         val expiryValid = computeCheckDigit(expiryRaw) == expiryCheckDigit
-        val compositeData = line2.substring(0, 10) + line2.substring(13, 20) + line2.substring(21, 43)
+        val compositeData = fixedLine2.substring(0, 10) + fixedLine2.substring(13, 20) + fixedLine2.substring(21, 43)
         val compositeValid = computeCheckDigit(compositeData) == compositeCheckDigit
 
         val checks = CheckDigits(passValid, dobValid, expiryValid, compositeValid)
@@ -222,11 +228,14 @@ object MrzParser {
      */
     private fun formatMrzDate(yymmdd: String): String {
         if (yymmdd.length != 6 || !yymmdd.all { it.isDigit() }) return yymmdd
-        val yy = yymmdd.substring(0, 2).toIntOrNull() ?: return yymmdd
+        // Keep yy as a 2-char String — converting to Int drops a leading zero
+        // ("04".toInt() = 4 → "$yy" = "4" → year becomes "204" instead of "2004")
+        val yyStr = yymmdd.substring(0, 2)
+        val yyNum = yyStr.toIntOrNull() ?: return yymmdd
         val mm = yymmdd.substring(2, 4)
         val dd = yymmdd.substring(4, 6)
-        val century = if (yy > 50) "19" else "20"
-        return "$dd/$mm/$century$yy"
+        val century = if (yyNum > 50) "19" else "20"
+        return "$dd/$mm/$century$yyStr"
     }
 
     /**
@@ -301,6 +310,83 @@ object MrzParser {
      */
     fun getCountryName(code: String): String = COUNTRY_NAMES[code.uppercase()] ?: code
 
+    // ═══════════════════════════════════════════════════════════════
+    //  Position-aware OCR fixes
+    //  ICAO 9303 MRZ uses fixed character classes per position.
+    //  Numeric fields → fix letter→digit confusions (O→0, I→1, B→8, …)
+    //  Letter fields  → fix digit→letter confusions (0→O, 1→I, 8→B, …)
+    // ═══════════════════════════════════════════════════════════════
+
+    /** Force a char to a digit using common OCR confusion table. */
+    private fun toDigit(c: Char): Char = when (c) {
+        in '0'..'9' -> c
+        'O', 'o', 'Q', 'D' -> '0'
+        'I', 'l', '|', 'T' -> '1'
+        'Z', 'z' -> '2'
+        'A' -> '4'
+        'S', 's', '$' -> '5'
+        'G', 'C' -> '6'
+        'B' -> '8'
+        'g', 'q' -> '9'
+        else -> c
+    }
+
+    /** Force a char to a letter using common OCR confusion table. */
+    private fun toLetter(c: Char): Char = when (c) {
+        in 'A'..'Z' -> c
+        in 'a'..'z' -> c.uppercaseChar()
+        '0' -> 'O'
+        '1' -> 'I'
+        '2' -> 'Z'
+        '4' -> 'A'
+        '5' -> 'S'
+        '6' -> 'G'
+        '8' -> 'B'
+        else -> c
+    }
+
+    /** Convert every char of a letter-only field (country, name) to its best letter guess. */
+    private fun fixLetters(s: String): String = s.map { toLetter(it) }.joinToString("")
+
+    /**
+     * Apply per-position character-class corrections to TD3 line 2 (44 chars).
+     * Layout:
+     *   Pos 0-8   numeric  (passport number — alphanumeric in spec but mostly digits)
+     *   Pos 9     numeric  (check digit)
+     *   Pos 10-12 letters  (nationality)
+     *   Pos 13-18 numeric  (DOB)
+     *   Pos 19    numeric  (check digit)
+     *   Pos 20    letter   (sex: M/F/<)
+     *   Pos 21-26 numeric  (expiry)
+     *   Pos 27    numeric  (check digit)
+     *   Pos 28-41 alphanum (personal number)
+     *   Pos 42    numeric  (check digit)
+     *   Pos 43    numeric  (composite check digit)
+     */
+    private fun fixLine2Positions(line2: String): String {
+        if (line2.length != 44) return line2
+        val arr = line2.toCharArray()
+        // Numeric positions
+        val numericRanges = listOf(9..9, 13..19, 21..27, 42..43)
+        numericRanges.forEach { range ->
+            for (i in range) {
+                if (arr[i] != '<') arr[i] = toDigit(arr[i])
+            }
+        }
+        // DOB (13-18) and expiry (21-26) get extra-aggressive digit forcing
+        // since they are critical for check-digit validation.
+        for (i in 13..18) if (arr[i] != '<') arr[i] = toDigit(arr[i])
+        for (i in 21..26) if (arr[i] != '<') arr[i] = toDigit(arr[i])
+
+        // Nationality (10-12) — letters only
+        for (i in 10..12) if (arr[i] != '<') arr[i] = toLetter(arr[i])
+
+        // Passport number (0-8) — keep as-is (alphanumeric per spec) but light fixes
+        // We don't aggressively force digits here because some passports do use letters.
+
+        return String(arr)
+    }
+
     /**
      * OCR engines often misread runs of `<` as runs of identical letters (K, L, c, T, ...).
      * Detect runs of 4+ consecutive identical letters at the END of the name field, or
@@ -345,15 +431,17 @@ object MrzParser {
     /**
      * Extract last and first names from MRZ name field (post-filler-recovery).
      * Tries `<<` split first, then falls back to splitting on any run of `<`.
+     * Also strips orphan lone characters that are likely OCR-mistaken `<` chars
+     * stuck to the start of the first name (e.g. "<<SAAD" misread as "<CSAAD" → "CSAAD").
      */
     private fun extractNames(nameField: String): Pair<String, String> {
         // Strategy 1: Standard `<<` separator
         val parts1 = nameField.split("<<", limit = 2)
         if (parts1.size == 2) {
             val last  = parts1[0].replace("<", " ").trim()
-            val first = parts1[1].replace("<", " ").trim()
+            val firstRaw = parts1[1].replace("<", " ").trim()
             if (last.isNotBlank() && last.length >= 2 && last.all { it.isLetter() || it == ' ' }) {
-                return last to first
+                return last to cleanFirstName(firstRaw)
             }
         }
 
@@ -361,13 +449,80 @@ object MrzParser {
         val parts2 = nameField.split(Regex("<+")).filter { it.isNotBlank() }
         if (parts2.size >= 2) {
             val last  = parts2[0].trim()
-            val first = parts2.drop(1).joinToString(" ").trim()
-            if (last.length >= 2) return last to first
+            val firstRaw = parts2.drop(1).joinToString(" ").trim()
+            if (last.length >= 2) return last to cleanFirstName(firstRaw)
         }
 
         // Strategy 3: take first sequence of letters as last name
         if (parts2.size == 1) return parts2[0].trim() to ""
 
         return "" to ""
+    }
+
+    /**
+     * Clean a parsed first name field by:
+     *  1) stripping leading 1-char "words" that are misread `<<` delimiters
+     *  2) stripping leading orphan letters glued to the first word (e.g. "CSAAD" → "SAAD")
+     *  3) splitting compound words that look like two names fused by a misread `<`
+     *     (e.g. "SAADCSEIF" → "SAAD SEIF", "SEIFCEL" → "SEIF EL")
+     */
+    private fun cleanFirstName(first: String): String {
+        var words = first.split(' ').filter { it.isNotBlank() }.toMutableList()
+
+        // Step 1: strip a lone 1-char first word
+        if (words.size >= 2 && words[0].length == 1) words.removeAt(0)
+
+        // Step 2: strip leading orphan letter glued to the first word
+        val orphanLetters = setOf('C', 'L', 'K', 'T', 'I', 'F')
+        if (words.isNotEmpty()) {
+            val w0 = words[0]
+            if (w0.length in 5..14 && w0[0] in orphanLetters &&
+                w0.drop(1).length >= 3 && w0.drop(1).all { it.isLetter() }) {
+                words[0] = w0.drop(1)
+            }
+        }
+
+        // Step 3: split every word that looks like two names fused by a misread `<`
+        words = words.flatMap { splitCompoundName(it) }.toMutableList()
+
+        return words.joinToString(" ")
+    }
+
+    /**
+     * Detect compound names like "SAADCSEIF" where the `<` between two names
+     * was misread as a letter. Returns 1 or 2 words.
+     *
+     * Heuristic:
+     *  - word must be 7+ letters
+     *  - find an orphan-letter (C, K, L, T, I, F) at position 3..len-3
+     *  - if both surrounding halves are 3+ letters, split there
+     */
+    private fun splitCompoundName(word: String): List<String> {
+        if (word.length < 7 || !word.all { it.isLetter() }) return listOf(word)
+        val orphanLetters = setOf('C', 'K', 'L', 'T', 'I', 'F')
+
+        // Scan positions where an orphan letter sits between two letter neighbours,
+        // and the right-hand half looks like a proper name (starts with a strong consonant
+        // pair break, e.g. "SEIF", "EL", "MOHAMED").
+        for (i in 3..word.length - 4) {
+            val ch = word[i]
+            if (ch !in orphanLetters) continue
+            val left = word.substring(0, i)
+            val right = word.substring(i + 1)
+            if (left.length >= 3 && right.length >= 3 &&
+                left.all { it.isLetter() } && right.all { it.isLetter() }) {
+                // Verify the split is plausible: the orphan letter shouldn't be the only
+                // possible vowel in a syllable. If left ends with a consonant and right
+                // starts with a consonant, it's a strong signal of a name boundary.
+                val vowels = setOf('A', 'E', 'I', 'O', 'U', 'Y')
+                val leftEndsConsonant = left.last() !in vowels
+                val rightStartsConsonant = right.first() !in vowels
+                if (leftEndsConsonant && rightStartsConsonant) {
+                    // Recurse on the right half — there may be more fused names
+                    return listOf(left) + splitCompoundName(right)
+                }
+            }
+        }
+        return listOf(word)
     }
 }

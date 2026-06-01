@@ -144,7 +144,9 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -274,6 +276,81 @@ private fun AlgerianFlag(modifier: Modifier = Modifier, cornerRadius: Int = 2) {
             close()
         }
         drawPath(star, CrimsonRed)
+    }
+}
+
+// ─── MyPass Brand Logo — emerald rounded square + ascending airplane mark ───
+@Composable
+private fun BrandLogo(
+    modifier: Modifier = Modifier,
+    cornerRadius: Int = 9,
+    showText: Boolean = false
+) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(
+            modifier = modifier
+                .clip(RoundedCornerShape(cornerRadius.dp))
+                .background(EmeraldGreen),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val cx = size.width / 2f
+                val cy = size.height / 2f
+                // Soft inner highlight (premium feel)
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(Color(0x22FFFFFF), Color.Transparent),
+                        center = Offset(size.width * 0.28f, size.height * 0.22f),
+                        radius = size.minDimension * 0.55f
+                    ),
+                    radius = size.minDimension * 0.55f,
+                    center = Offset(size.width * 0.28f, size.height * 0.22f)
+                )
+
+                // Ascending airplane silhouette (rotated -30°)
+                withTransform({
+                    translate(cx, cy)
+                    rotate(degrees = -30f, pivot = Offset.Zero)
+                }) {
+                    val s = size.minDimension * 0.017f
+                    val white = Color.White
+                    // Fuselage
+                    val fuselage = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(-3f * s, -22f * s); lineTo(4f * s, -22f * s)
+                        lineTo(5f * s, -12f * s); lineTo(5f * s, 12f * s)
+                        lineTo(8f * s, 18f * s);  lineTo(8f * s, 22f * s)
+                        lineTo(2f * s, 21f * s);  lineTo(-2f * s, 21f * s)
+                        lineTo(-8f * s, 22f * s); lineTo(-8f * s, 18f * s)
+                        lineTo(-5f * s, 12f * s); lineTo(-5f * s, -12f * s); close()
+                    }
+                    drawPath(fuselage, white)
+                    // Main wings
+                    val wings = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(-5f * s, -3f * s); lineTo(-26f * s, 8f * s)
+                        lineTo(-26f * s, 12f * s); lineTo(-5f * s, 5f * s)
+                        lineTo(5f * s, 5f * s);    lineTo(26f * s, 12f * s)
+                        lineTo(26f * s, 8f * s);   lineTo(5f * s, -3f * s); close()
+                    }
+                    drawPath(wings, white)
+                    // Tail
+                    val tail = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(-10f * s, 15f * s); lineTo(-3f * s, 12f * s)
+                        lineTo(3f * s, 12f * s);   lineTo(10f * s, 15f * s)
+                        lineTo(10f * s, 18f * s);  lineTo(-10f * s, 18f * s); close()
+                    }
+                    drawPath(tail, white)
+                }
+            }
+        }
+        if (showText) {
+            Text(
+                "MyPass",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp
+                ),
+                color = EmeraldGreen
+            )
+        }
     }
 }
 
@@ -430,165 +507,394 @@ fun AirlineCheckInApp(
         }
     }
 }
-
 // ═══════════════════════════════════════════════════════════════
-//  SPLASH — Luxury depth particles + metallic gold sweep + horizon
-// ═══════════════════════════════════════════════════════════════
-
-// ═══════════════════════════════════════════════════════════════
-//  SPLASH — Brand-first, restrained (Lufthansa / AF style)
+//  SPLASH — Realistic side-view airplane gliding (homogeneous with app)
 // ═══════════════════════════════════════════════════════════════
 
 @Composable
 private fun SplashScreen(onFinished: () -> Unit) {
-    val titleAlpha    = remember { Animatable(0f) }
-    val titleY        = remember { Animatable(8f) }
-    val subtitleAlpha = remember { Animatable(0f) }
-    val brandAlpha    = remember { Animatable(0f) }
-    val ruleProg      = remember { Animatable(0f) }
+    val context = LocalContext.current
+
+    val cloudShift   = remember { Animatable(0f) }   // parallax clouds
+    val planeProg    = remember { Animatable(0f) }   // 0 → 1 across the screen
+    val planeFade    = remember { Animatable(1f) }   // fade out at end
+    val logoAlpha    = remember { Animatable(0f) }
+    val logoScale    = remember { Animatable(0.92f) }
+    val wordAlpha    = remember { Animatable(0f) }
+    val wordY        = remember { Animatable(8f) }
+    val ruleProg     = remember { Animatable(0f) }
+    val taglineAlpha = remember { Animatable(0f) }
 
     LaunchedEffect(Unit) {
-        launch { titleAlpha.animateTo(1f, tween(550, easing = FastOutSlowInEasing)) }
-        launch { titleY.animateTo(0f, tween(650, easing = FastOutSlowInEasing)) }
-        launch { ruleProg.animateTo(1f, tween(600, delayMillis = 350, easing = FastOutSlowInEasing)) }
-        launch { subtitleAlpha.animateTo(1f, tween(450, delayMillis = 500)) }
-        launch { brandAlpha.animateTo(1f, tween(400, delayMillis = 1100)) }
-        delay(1900)
+        // Clouds drift slowly (parallax)
+        launch { cloudShift.animateTo(1f, tween(3700, easing = LinearEasing)) }
+
+        // Plane glides smoothly across (left → right), subtle haptic at midpoint
+        launch {
+            delay(250)
+            planeProg.animateTo(1f, tween(2200, easing = FastOutSlowInEasing))
+            planeFade.animateTo(0f, tween(280))
+        }
+        launch {
+            delay(900)
+            triggerTakeoffHaptic(context)
+        }
+
+        // Logo + wordmark + tagline build up
+        launch {
+            delay(1700)
+            launch { logoAlpha.animateTo(1f, tween(450)) }
+            launch { logoScale.animateTo(1f, tween(550, easing = FastOutSlowInEasing)) }
+        }
+        launch {
+            delay(1900)
+            launch { wordAlpha.animateTo(1f, tween(500)) }
+            launch { wordY.animateTo(0f, tween(550, easing = FastOutSlowInEasing)) }
+        }
+        launch { ruleProg.animateTo(1f, tween(500, delayMillis = 2300, easing = FastOutSlowInEasing)) }
+        launch { taglineAlpha.animateTo(1f, tween(450, delayMillis = 2500)) }
+
+        delay(3400)
         onFinished()
     }
+
+    // Pre-computed cloud blobs (positions, sizes)
+    data class Cloud(val x: Float, val y: Float, val w: Float, val opacity: Float, val depth: Float)
+    val clouds = remember {
+        val rng = kotlin.random.Random(31)
+        List(7) {
+            Cloud(
+                x = rng.nextFloat() * 1.3f - 0.15f,
+                y = rng.nextFloat() * 0.35f + 0.08f,
+                w = rng.nextFloat() * 90f + 70f,
+                opacity = 0.04f + rng.nextFloat() * 0.05f,
+                depth = rng.nextFloat()
+            )
+        }
+    }
+
+    val cloudBaseColor = MaterialTheme.colorScheme.outlineVariant
 
     Box(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        // ── Layer 1: soft drifting clouds (very pale, no contrast) ──
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            clouds.forEach { c ->
+                val parallaxShift = cloudShift.value * (-30f - 30f * c.depth)
+                val cx = (c.x * size.width + parallaxShift)
+                val cy = c.y * size.height
+                drawCloud(cx, cy, c.w.dp.toPx(), cloudBaseColor.copy(alpha = c.opacity), this)
+            }
+        }
+
+        // ── Layer 2: airplane gliding from left to right along a gentle arc ──
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            // Trajectory: gentle ascending arc, plane stays in upper third
+            val startX = -size.width * 0.10f
+            val startY = size.height * 0.48f
+            val ctrlX  = size.width * 0.50f
+            val ctrlY  = size.height * 0.30f
+            val endX   = size.width * 1.10f
+            val endY   = size.height * 0.22f
+
+            fun point(t: Float): Offset {
+                val omt = 1f - t
+                return Offset(
+                    omt * omt * startX + 2 * omt * t * ctrlX + t * t * endX,
+                    omt * omt * startY + 2 * omt * t * ctrlY + t * t * endY
+                )
+            }
+            fun tangent(t: Float): Float {
+                val dx = 2 * (1 - t) * (ctrlX - startX) + 2 * t * (endX - ctrlX)
+                val dy = 2 * (1 - t) * (ctrlY - startY) + 2 * t * (endY - ctrlY)
+                return kotlin.math.atan2(dy, dx)
+            }
+
+            val prog = planeProg.value
+            val fade = planeFade.value
+
+            if (prog > 0f && fade > 0f) {
+                // Smooth contrail: 50 segments
+                val tailLen = 50
+                for (i in 1..tailLen) {
+                    val tBack = (prog - i * 0.012f).coerceAtLeast(0f)
+                    if (tBack <= 0f) break
+                    val tNext = (tBack - 0.012f).coerceAtLeast(0f)
+                    val p1 = point(tBack)
+                    val p2 = point(tNext)
+                    val ratio = 1f - i / tailLen.toFloat()
+                    val alpha = ratio * ratio * 0.55f * fade
+                    val width = (3.5f * ratio + 0.4f).dp.toPx()
+                    drawLine(
+                        color = EmeraldGreen.copy(alpha = alpha),
+                        start = p1, end = p2,
+                        strokeWidth = width, cap = StrokeCap.Round
+                    )
+                }
+
+                // Side-view airplane silhouette (more realistic than top-down)
+                val head = point(prog)
+                val angleDeg = tangent(prog) * 57.2958f
+                withTransform({
+                    translate(head.x, head.y)
+                    rotate(degrees = angleDeg, pivot = Offset.Zero)
+                }) {
+                    drawAirplaneSideRealistic(fade)
+                }
+            }
+        }
+
+        // ── Layer 3: centered brand mark + wordmark ──
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            BrandLogo(
+                modifier = Modifier
+                    .size(72.dp)
+                    .graphicsLayer {
+                        alpha = logoAlpha.value
+                        scaleX = logoScale.value; scaleY = logoScale.value
+                    },
+                cornerRadius = 18
+            )
+
+            Spacer(modifier = Modifier.height(22.dp))
+
             Text(
                 "MyPass",
                 style = MaterialTheme.typography.displayMedium.copy(
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = (-1.2).sp
+                    fontWeight = FontWeight.Black, letterSpacing = (-1.4).sp
                 ),
                 color = EmeraldGreen,
                 modifier = Modifier.graphicsLayer {
-                    alpha = titleAlpha.value
-                    translationY = titleY.value
+                    alpha = wordAlpha.value
+                    translationY = wordY.value
                 }
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            Canvas(modifier = Modifier.width(48.dp).height(1.dp)) {
+            Canvas(modifier = Modifier.width(72.dp).height(1.dp)) {
                 val w = size.width * ruleProg.value
                 drawLine(
-                    color = EmeraldGreen.copy(alpha = 0.7f),
+                    color = EmeraldGreen.copy(alpha = 0.6f),
                     start = Offset((size.width - w) / 2f, size.height / 2),
                     end   = Offset((size.width + w) / 2f, size.height / 2),
-                    strokeWidth = 1.2f,
-                    cap = StrokeCap.Round
+                    strokeWidth = 1.2f, cap = StrokeCap.Round
                 )
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                "DIGITAL CHECK-IN",
+                "EVERY JOURNEY MATTERS",
                 style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 3.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.Medium,
-                modifier = Modifier.graphicsLayer { alpha = subtitleAlpha.value }
-            )
-        }
-
-        Row(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 40.dp)
-                .graphicsLayer { alpha = brandAlpha.value },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            AlgerianFlag(
-                modifier = Modifier
-                    .size(width = 18.dp, height = 12.dp)
-                    .clip(RoundedCornerShape(1.dp))
-                    .border(0.4.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(1.dp))
-            )
-            Text(
-                "AIR ALGÉRIE",
-                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.SemiBold
+                modifier = Modifier.graphicsLayer { alpha = taglineAlpha.value }
             )
         }
     }
 }
 
+/** Soft, pale cloud blob — purely decorative for the splash. */
+private fun drawCloud(cx: Float, cy: Float, w: Float, color: Color, scope: DrawScope) {
+    with(scope) {
+        drawCircle(color, w * 0.28f, Offset(cx, cy))
+        drawCircle(color, w * 0.22f, Offset(cx + w * 0.22f, cy + w * 0.04f))
+        drawCircle(color, w * 0.18f, Offset(cx - w * 0.20f, cy + w * 0.06f))
+        drawCircle(color, w * 0.16f, Offset(cx + w * 0.40f, cy + w * 0.09f))
+        drawCircle(color, w * 0.14f, Offset(cx - w * 0.36f, cy + w * 0.10f))
+    }
+}
+
+/** Side-view airplane silhouette in emerald — drawn around (0,0), nose pointing +X.
+ *  Use rotate() before calling to align with flight direction. */
+private fun DrawScope.drawAirplaneSideRealistic(alpha: Float) {
+    val color = EmeraldGreen.copy(alpha = alpha)
+    val accent = Color(0xFFCFE7D7).copy(alpha = alpha * 0.85f)
+    val s = 1.3f
+
+    // Fuselage (long capsule) — nose at right, tail at left
+    val fuselage = androidx.compose.ui.graphics.Path().apply {
+        moveTo(46f * s, 0f)
+        quadraticBezierTo(55f * s, -3f * s, 46f * s, -6f * s)
+        lineTo(-32f * s, -6f * s)
+        lineTo(-48f * s, -3f * s)
+        lineTo(-48f * s, 3f * s)
+        lineTo(-32f * s, 6f * s)
+        lineTo(46f * s, 6f * s)
+        quadraticBezierTo(55f * s, 3f * s, 46f * s, 0f)
+        close()
+    }
+    drawPath(fuselage, color)
+
+    // Main wing — swept-back (visible as a long delta below the fuselage)
+    val wing = androidx.compose.ui.graphics.Path().apply {
+        moveTo(8f * s, 3f * s)
+        lineTo(-18f * s, 22f * s)
+        lineTo(-6f * s, 23f * s)
+        lineTo(22f * s, 5f * s)
+        close()
+    }
+    drawPath(wing, color)
+
+    // Vertical tail fin (rises behind tail)
+    val vFin = androidx.compose.ui.graphics.Path().apply {
+        moveTo(-36f * s, -6f * s)
+        lineTo(-44f * s, -22f * s)
+        lineTo(-48f * s, -6f * s)
+        close()
+    }
+    drawPath(vFin, color)
+
+    // Horizontal stabilizer
+    val hStab = androidx.compose.ui.graphics.Path().apply {
+        moveTo(-38f * s, -2f * s)
+        lineTo(-50f * s, -8f * s)
+        lineTo(-42f * s, -2f * s)
+        close()
+    }
+    drawPath(hStab, color)
+
+    // Engine pod under wing
+    drawRoundRect(color,
+        topLeft = Offset(-4f * s, 12f * s),
+        size = Size(20f * s, 6f * s),
+        cornerRadius = CornerRadius(3f * s)
+    )
+
+    // Cockpit highlight
+    drawCircle(accent, 2.6f * s, Offset(40f * s, -2f * s))
+
+    // Row of cabin windows
+    for (i in 0..6) {
+        val wx = 32f * s - i * 9f * s
+        drawCircle(accent, 1.4f * s, Offset(wx, -1f * s))
+    }
+}
+
+/** Trigger a short takeoff haptic vibration (subtle, like a click+rumble). */
+private fun triggerTakeoffHaptic(context: android.content.Context) {
+    runCatching {
+        val vibrator = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            val vm = context.getSystemService(android.content.Context.VIBRATOR_MANAGER_SERVICE)
+                as android.os.VibratorManager
+            vm.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as android.os.Vibrator
+        }
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            val effect = android.os.VibrationEffect.createWaveform(
+                longArrayOf(0, 40, 40, 80),
+                intArrayOf(0, 90, 0, 140),
+                -1
+            )
+            vibrator.vibrate(effect)
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(110L)
+        }
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════
-//  AUTH — Sign In + Sign Up (clean, no decorative hero)
+//  AUTH — Sign In + Sign Up (international with real photography)
 // ═══════════════════════════════════════════════════════════════
 
-/** Refined top bar header — clean, no gradients, no particles. */
+/** International-grade hero with full-bleed photography + gradient scrim.
+ *  Matches the look of Emirates / Lufthansa / Singapore Airlines auth screens. */
 @Composable
 private fun AuthLuxeHero(
     title: String,
     subtitle: String,
+    heroImageUrl: String = Img.HERO_PLANE,
     onBack: (() -> Unit)? = null
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .fillMaxHeight(0.32f)
-            .background(MaterialTheme.colorScheme.background)
+            .fillMaxHeight(0.52f)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth()
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(horizontal = 20.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (onBack != null) {
-                IconButton(
-                    onClick = onBack,
-                    modifier = Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, null,
-                        tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
+        // Real photo background
+        AsyncImage(
+            model = ImageRequest.Builder(LocalContext.current).data(heroImageUrl).crossfade(true).build(),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+        // Gradient scrim — light at top, deeper at bottom
+        Box(
+            modifier = Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color.Black.copy(alpha = 0.30f),
+                        Color.Black.copy(alpha = 0.10f),
+                        Color(0xFF003520).copy(alpha = 0.55f),
+                        Color(0xFF003520).copy(alpha = 0.85f)
+                    )
+                )
+            )
+        )
+
+        // Structured Column: top bar at top, title block lifted above sheet overlap
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier.fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (onBack != null) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.size(40.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.18f))
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null,
+                            tint = Color.White, modifier = Modifier.size(20.dp))
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
                 }
-                Spacer(modifier = Modifier.width(12.dp))
+                BrandLogo(modifier = Modifier.size(34.dp), cornerRadius = 8)
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    "MyPass",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp
+                    ),
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.weight(1f))
             }
-            Text(
-                "MyPass",
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp
-                ),
-                color = EmeraldGreen
-            )
+
+            // Flex spacer — pushes the title down to sit in the upper part of the
+            // bottom half of the hero (so it's well above the sheet overlap zone).
             Spacer(modifier = Modifier.weight(1f))
-            AlgerianFlag(
+
+            Column(
                 modifier = Modifier
-                    .size(width = 22.dp, height = 14.dp)
-                    .clip(RoundedCornerShape(1.dp))
-                    .border(0.4.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(1.dp))
-            )
-        }
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(horizontal = 24.dp, vertical = 24.dp)
-        ) {
-            Text(
-                title,
-                style = MaterialTheme.typography.displaySmall.copy(
-                    fontWeight = FontWeight.Black, letterSpacing = (-1).sp
-                ),
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 96.dp) // 96dp safe zone above the sheet
+            ) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.displaySmall.copy(
+                        fontWeight = FontWeight.Black, letterSpacing = (-1).sp
+                    ),
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color.White.copy(alpha = 0.85f)
+                )
+            }
         }
     }
 }
@@ -687,13 +993,14 @@ private fun SignInScreen(
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         AuthLuxeHero(
             title = "Welcome back",
-            subtitle = "Sign in to continue your journey"
+            subtitle = "Sign in to continue your journey",
+            heroImageUrl = Img.HERO_PLANE
         )
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .fillMaxHeight(0.74f)
+                .fillMaxHeight(0.56f)
         ) {
             AuthLuxeSheet {
                 // Title
@@ -701,7 +1008,7 @@ private fun SignInScreen(
                     Box(modifier = Modifier
                         .width(3.dp).height(28.dp)
                         .clip(RoundedCornerShape(1.5.dp))
-                        .background(Brush.verticalGradient(listOf(LiquidGold, Color(0xFF8B6914)))))
+                        .background(EmeraldGreen))
                     Column {
                         Text("Sign in",
                             style = MaterialTheme.typography.headlineMedium.copy(
@@ -809,21 +1116,22 @@ private fun SignUpScreen(
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         AuthLuxeHero(
             title = "Create account",
-            subtitle = "Join thousands of refined travelers",
+            subtitle = "Your journey starts here",
+            heroImageUrl = Img.HERO_AIRPORT,
             onBack = onBack
         )
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .fillMaxHeight(0.74f)
+                .fillMaxHeight(0.56f)
         ) {
             AuthLuxeSheet {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Box(modifier = Modifier
                         .width(3.dp).height(28.dp)
                         .clip(RoundedCornerShape(1.5.dp))
-                        .background(Brush.verticalGradient(listOf(LiquidGold, Color(0xFF8B6914)))))
+                        .background(EmeraldGreen))
                     Column {
                         Text("Register",
                             style = MaterialTheme.typography.headlineMedium.copy(
@@ -1111,15 +1419,7 @@ private fun HomeTab(
                     .padding(horizontal = 20.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier.size(36.dp).clip(CircleShape)
-                        .background(Brush.radialGradient(listOf(Color(0xFFD4AF37), Color(0xFFB8860B))))
-                        .border(0.6.dp, Color(0xFFFFE9A8).copy(0.5f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Filled.FlightTakeoff, null,
-                        tint = Color(0xFF04261A), modifier = Modifier.size(18.dp))
-                }
+                BrandLogo(modifier = Modifier.size(36.dp), cornerRadius = 9)
                 Spacer(modifier = Modifier.width(10.dp))
                 Text("MyPass",
                     style = MaterialTheme.typography.titleLarge.copy(
@@ -1172,12 +1472,8 @@ private fun HomeTab(
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
                 Column {
-                    // Top gold metallic line
-                    Canvas(modifier = Modifier.fillMaxWidth().height(2.dp)) {
-                        drawRect(Brush.horizontalGradient(
-                            listOf(Color.Transparent, LiquidGold.copy(0.6f), LiquidGold, LiquidGold.copy(0.6f), Color.Transparent)
-                        ))
-                    }
+                    // Top brand accent (single emerald hairline, no gradient)
+                    Box(modifier = Modifier.fillMaxWidth().height(2.dp).background(EmeraldGreen))
                     Column(modifier = Modifier.padding(20.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             GoldAccent(modifier = Modifier.height(22.dp))
@@ -1283,7 +1579,7 @@ private fun HomeTab(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(LiquidGold)
+                                .background(CrimsonRed)
                                 .padding(horizontal = 8.dp, vertical = 3.dp)
                         ) {
                             Text("LIMITED TIME", style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
@@ -1999,8 +2295,6 @@ private fun ProfileTab(
                 Text("MyPass v1.0  ·  Made in Algeria",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.outline)
-                Spacer(modifier = Modifier.width(6.dp))
-                AlgerianFlag(modifier = Modifier.size(width = 18.dp, height = 12.dp).clip(RoundedCornerShape(2.dp)))
             }
         }
     }
@@ -2198,9 +2492,13 @@ private fun PassportScanScreen(
     var hasCameraPermission by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
     }
-    var mrzResult    by remember { mutableStateOf<MrzParser.MrzResult?>(null) }
-    var isProcessing by remember { mutableStateOf(false) }
-    var scanStatus   by remember { mutableStateOf("Position your passport in the frame") }
+    var mrzResult     by remember { mutableStateOf<MrzParser.MrzResult?>(null) }
+    var isProcessing  by remember { mutableStateOf(false) }
+    var scanStatus    by remember { mutableStateOf("Position your passport in the frame") }
+    // Multi-frame accumulation: collect candidates over a few seconds for accuracy
+    val candidates    = remember { mutableListOf<MrzParser.MrzResult>() }
+    var firstSeenAt   by remember { mutableStateOf(0L) }
+    var sampledCount  by remember { mutableIntStateOf(0) }
 
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         hasCameraPermission = it
@@ -2245,20 +2543,51 @@ private fun PassportScanScreen(
                             isProcessing = true
                             processPassportFrame(imageProxy) { result ->
                                 if (result != null && mrzResult == null) {
-                                    mrzResult = result
-                                    scanStatus = "Passport detected"
-                                    val passportInfo = PassportInfo(
-                                        fullName       = "${result.firstName} ${result.lastName}".trim(),
-                                        passportNumber = result.passportNumber,
-                                        nationality    = result.nationality,
-                                        dateOfBirth    = result.dateOfBirth,
-                                        expiryDate     = result.expiryDate,
-                                        gender         = result.sex,
-                                        rawText        = result.rawMrz,
-                                        verified       = result.isValid
-                                    )
-                                    vm.attachPassportInfo(passportInfo)
-                                } else { scanStatus = "Scanning MRZ zone..." }
+                                    if (firstSeenAt == 0L) firstSeenAt = System.currentTimeMillis()
+                                    candidates += result
+                                    sampledCount = candidates.size
+                                    val elapsed = System.currentTimeMillis() - firstSeenAt
+
+                                    // Quality gate
+                                    val highConfHits = candidates.count { it.confidence >= 0.80f && it.checkDigitsValid.allValid }
+                                    val sampleCount  = candidates.size
+
+                                    // Show progress to user
+                                    scanStatus = when {
+                                        highConfHits >= 2 -> "Verifying… ($highConfHits/2 high-conf)"
+                                        sampleCount >= 1  -> "Hold steady… analyzing ($sampleCount samples)"
+                                        else              -> "Scanning MRZ zone…"
+                                    }
+
+                                    // Accept when we have either:
+                                    //  - 2+ high-conf samples that all-check-digits-valid agree on passport#, OR
+                                    //  - 5+ samples and the elapsed > 2.5s (pick the best), OR
+                                    //  - 12+ samples regardless (timeout fail-safe)
+                                    val finalResult: MrzParser.MrzResult? = when {
+                                        highConfHits >= 2 -> pickBest(candidates.filter { it.confidence >= 0.80f })
+                                        sampleCount >= 5 && elapsed > 2500 -> pickBest(candidates)
+                                        sampleCount >= 12 -> pickBest(candidates)
+                                        else -> null
+                                    }
+
+                                    if (finalResult != null) {
+                                        mrzResult = finalResult
+                                        scanStatus = "Verified"
+                                        val passportInfo = PassportInfo(
+                                            fullName       = "${finalResult.firstName} ${finalResult.lastName}".trim(),
+                                            passportNumber = finalResult.passportNumber,
+                                            nationality    = finalResult.nationality,
+                                            dateOfBirth    = finalResult.dateOfBirth,
+                                            expiryDate     = finalResult.expiryDate,
+                                            gender         = finalResult.sex,
+                                            rawText        = finalResult.rawMrz,
+                                            verified       = finalResult.isValid
+                                        )
+                                        vm.attachPassportInfo(passportInfo)
+                                    }
+                                } else if (firstSeenAt == 0L) {
+                                    scanStatus = "Scanning MRZ zone…"
+                                }
                                 isProcessing = false
                             }
                         } else { imageProxy.close() }
@@ -2385,6 +2714,39 @@ private fun ScanOverlay(isScanning: Boolean) {
             drawLine(EmeraldGreen, Offset(left + 8f, ly), Offset(left + wW - 8f, ly), 2f)
         }
     }
+}
+
+/**
+ * Pick the best candidate by:
+ *  1) Majority vote on passport number (most agreed-upon scan wins)
+ *  2) For each field, majority vote across all matching candidates
+ *  3) Fall back to highest single-candidate confidence
+ */
+private fun pickBest(candidates: List<MrzParser.MrzResult>): MrzParser.MrzResult {
+    if (candidates.size == 1) return candidates.first()
+
+    // Group by passport number, pick the most common
+    val byPassportNum = candidates.groupBy { it.passportNumber }
+        .maxByOrNull { it.value.size }?.value ?: candidates
+
+    // Per-field majority vote within the winning group
+    fun <T> majority(extract: (MrzParser.MrzResult) -> T): T {
+        val groups = byPassportNum.groupBy(extract)
+        return groups.maxByOrNull { it.value.size }!!.key
+    }
+
+    val base = byPassportNum.maxByOrNull { it.confidence }!!
+    return base.copy(
+        lastName       = majority { it.lastName },
+        firstName      = majority { it.firstName },
+        passportNumber = majority { it.passportNumber },
+        nationality    = majority { it.nationality },
+        dateOfBirth    = majority { it.dateOfBirth },
+        expiryDate     = majority { it.expiryDate },
+        sex            = majority { it.sex },
+        confidence     = byPassportNum.maxOf { it.confidence },
+        isValid        = byPassportNum.any { it.isValid }
+    )
 }
 
 @androidx.annotation.OptIn(ExperimentalGetImage::class)
@@ -2616,7 +2978,7 @@ private fun BaggageScreen(state: AppUiState, onUpdate: (Int, Int, Int) -> Unit, 
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             BagRow("Checked bags",  "23 kg each",  Icons.Filled.Luggage, EmeraldGreen, checked)  { checked = it.coerceAtLeast(0) }
             BagRow("Carry-on bags", "7 kg each",   Icons.Filled.Luggage, StatusInfo,    carryOn)  { carryOn = it.coerceAtLeast(0) }
-            BagRow("Oversized",     "Special items",Icons.Filled.Luggage, LiquidGold,   oversized){ oversized = it.coerceAtLeast(0) }
+            BagRow("Oversized",     "Special items",Icons.Filled.Luggage, CrimsonRed,   oversized){ oversized = it.coerceAtLeast(0) }
             Spacer(modifier = Modifier.height(8.dp))
             val totalKg = checked * 23.0 + carryOn * 7.0
             Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
@@ -2788,7 +3150,7 @@ private fun BoardingPassScreen(
                         onClick  = onNewLookup,
                         modifier = Modifier.weight(1f).height(50.dp),
                         shape    = RoundedCornerShape(14.dp),
-                        border   = BorderStroke(1.dp, LiquidGold.copy(0.6f)),
+                        border   = BorderStroke(1.dp, EmeraldGreen.copy(0.5f)),
                         colors   = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
                     ) {
                         Text("Done",
@@ -2835,16 +3197,14 @@ private fun BoardingPassScreen(
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                     elevation = CardDefaults.cardElevation(0.dp),
-                    border = BorderStroke(0.8.dp, LiquidGold.copy(0.45f))
+                    border = BorderStroke(0.5.dp, EmeraldGreen.copy(0.30f))
                 ) {
                     Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Box(
-                            modifier = Modifier.size(36.dp).clip(CircleShape)
-                                .background(Brush.radialGradient(listOf(EmeraldGreen, Color(0xFF02180F))))
-                                .border(0.6.dp, LiquidGold.copy(0.6f), CircleShape),
+                            modifier = Modifier.size(36.dp).clip(CircleShape).background(EmeraldGreen),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Filled.CheckCircle, null, tint = LiquidGold, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Filled.CheckCircle, null, tint = PureWhite, modifier = Modifier.size(20.dp))
                         }
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
@@ -3041,14 +3401,11 @@ private fun CleanBoardingPassCard(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // ── Footer: Algerian flag + status pill ──
+                // ── Footer: MyPass brand mark + status pill ──
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        AlgerianFlag(modifier = Modifier
-                            .size(width = 20.dp, height = 13.dp)
-                            .clip(RoundedCornerShape(1.dp))
-                            .border(0.4.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(1.dp)))
+                        BrandLogo(modifier = Modifier.size(18.dp), cornerRadius = 4)
                         Text("AIR ALGÉRIE",
                             style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.8.sp),
                             color = charcoal.copy(0.6f), fontWeight = FontWeight.SemiBold)
