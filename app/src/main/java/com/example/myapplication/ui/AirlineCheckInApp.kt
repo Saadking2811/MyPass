@@ -1567,6 +1567,24 @@ private fun HomeTab(
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.Black, letterSpacing = (-0.4).sp),
                     color = MaterialTheme.colorScheme.onBackground)
+                if (!state.isOnline) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Box(modifier = Modifier
+                            .size(7.dp).clip(CircleShape).background(StatusWarning))
+                        Text("Offline",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold)
+                    }
+                }
                 Spacer(modifier = Modifier.weight(1f))
                 IconButton(
                     onClick = {},

@@ -58,6 +58,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = AppRepository(application.applicationContext)
     private val networkMonitor = NetworkMonitor(application.applicationContext)
+    private val offlineCache = com.example.myapplication.data.OfflineCacheManager(application.applicationContext)
+    private var wasOffline = false
 
     private val _uiState = MutableStateFlow(AppUiState())
     val uiState: StateFlow<AppUiState> = _uiState.asStateFlow()
@@ -65,36 +67,69 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     init {
         ensureNotificationChannel()
 
-        // 1. Watch network connectivity.
+        // 1. Load offline cache immediately — instant UI even without network.
         viewModelScope.launch {
-            networkMonitor.isOnline.collectLatest { online ->
-                _uiState.update { it.copy(isOnline = online) }
+            val cache = offlineCache.current()
+            _uiState.update {
+                it.copy(
+                    currentUser = cache.user,                       // restore offline session
+                    cachedBoardingPasses = cache.boardingPasses,    // restore offline passes
+                    cachedFlights = cache.flights                   // restore offline flights
+                )
             }
         }
 
-        // 2. Restore session on cold start (calls /auth/me with stored Bearer token).
+        // 2. Watch network connectivity + auto-sync on reconnect.
+        viewModelScope.launch {
+            networkMonitor.isOnline.collectLatest { online ->
+                _uiState.update { it.copy(isOnline = online) }
+                if (online && wasOffline) {
+                    // Came back online → re-validate session and pull fresh data.
+                    val uid = _uiState.value.currentUser?.id
+                    if (uid != null) {
+                        refreshUserData(uid)
+                        _uiState.update { it.copy(statusMessage = "Synced with server.") }
+                    }
+                }
+                wasOffline = !online
+            }
+        }
+
+        // 3. Restore session on cold start (calls /auth/me with stored Bearer token).
+        //    If offline, the cached user (loaded above) remains visible.
         viewModelScope.launch {
             val restored = repository.restoreSession().getOrNull()
             if (restored != null) {
                 _uiState.update { it.copy(currentUser = restored, isRestoringSession = false) }
+                offlineCache.saveUser(restored)
                 refreshUserData(restored.id)
             } else {
+                // No fresh session from server — keep whatever the cache provided.
                 _uiState.update { it.copy(isRestoringSession = false) }
             }
         }
     }
 
-    /** Pulls fresh boarding passes + flights from the backend. */
+    /** Pulls fresh boarding passes + flights from the backend, persists to offline cache. */
     private fun refreshUserData(userId: String) {
         viewModelScope.launch {
-            val passes = repository.getUserBoardingPasses(userId).getOrNull().orEmpty()
-            val flights = repository.getUserFlights(userId).getOrNull().orEmpty()
+            val passesResult = repository.getUserBoardingPasses(userId)
+            val flightsResult = repository.getUserFlights(userId)
+
+            val passes = passesResult.getOrNull()
+            val flights = flightsResult.getOrNull()
+
+            // Only update state if server returned something — otherwise keep cache.
             _uiState.update {
                 it.copy(
-                    cachedBoardingPasses = passes,
-                    cachedFlights = flights
+                    cachedBoardingPasses = passes ?: it.cachedBoardingPasses,
+                    cachedFlights = flights ?: it.cachedFlights
                 )
             }
+
+            // Persist whatever we got fresh to local cache for offline access.
+            if (passes != null) offlineCache.saveBoardingPasses(passes)
+            if (flights != null) offlineCache.saveFlights(flights)
         }
     }
 
@@ -119,6 +154,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         statusMessage = "Welcome aboard, ${user.fullName.split(" ").first()}!"
                     )
                 }
+                offlineCache.saveUser(user)
                 refreshUserData(user.id)
             }.onFailure { error ->
                 _uiState.update { it.copy(isLoading = false, statusMessage = error.message) }
@@ -143,6 +179,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         statusMessage = "Welcome back, ${user.fullName.split(" ").first()}!"
                     )
                 }
+                offlineCache.saveUser(user)
                 refreshUserData(user.id)
             }.onFailure { error ->
                 _uiState.update { it.copy(isLoading = false, statusMessage = error.message) }
@@ -164,6 +201,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         statusMessage = "Signed in as ${user.fullName.split(" ").first()}."
                     )
                 }
+                offlineCache.saveUser(user)
                 refreshUserData(user.id)
             }.onFailure { error ->
                 _uiState.update { it.copy(isLoading = false, statusMessage = error.message) }
@@ -173,6 +211,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun logout() {
         repository.logout()
+        viewModelScope.launch { offlineCache.clear() }
         _uiState.update { AppUiState(isRestoringSession = false) }
     }
 
