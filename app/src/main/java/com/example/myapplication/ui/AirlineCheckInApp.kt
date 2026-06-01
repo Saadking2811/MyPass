@@ -1,5 +1,12 @@
 package com.example.myapplication.ui
 
+import com.example.myapplication.ui.components.BrandLogo
+import com.example.myapplication.ui.components.CleanField
+import com.example.myapplication.ui.components.ForgotPasswordDialog
+import com.example.myapplication.ui.components.PrimaryButton
+import com.example.myapplication.ui.components.SecondaryButton
+import com.example.myapplication.ui.splash.SplashScreen
+
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -231,129 +238,6 @@ private val popularDestinations = listOf(
     Destination("JFK", "New York",  "USA",     Img.NYC,       "")
 )
 
-// ─── Proper Algerian Flag (vertical green-white halves + red crescent + 5-pointed star) ───
-@Composable
-private fun AlgerianFlag(modifier: Modifier = Modifier, cornerRadius: Int = 2) {
-    Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
-        // Left half green, right half white
-        drawRect(EmeraldGreen, Offset(0f, 0f), Size(w / 2, h))
-        drawRect(PureWhite,    Offset(w / 2, 0f), Size(w / 2, h))
-
-        val cx = w / 2f
-        val cy = h / 2f
-        val outerR = h * 0.34f
-
-        // Crescent (outer disk minus offset disk via even-odd fill)
-        val crescent = androidx.compose.ui.graphics.Path().apply {
-            fillType = androidx.compose.ui.graphics.PathFillType.EvenOdd
-            addOval(androidx.compose.ui.geometry.Rect(
-                Offset(cx - outerR, cy - outerR), Size(outerR * 2, outerR * 2)
-            ))
-            // inner disk slightly offset right to carve crescent shape
-            val innerR = outerR * 0.84f
-            addOval(androidx.compose.ui.geometry.Rect(
-                Offset(cx - innerR + outerR * 0.18f, cy - innerR),
-                Size(innerR * 2, innerR * 2)
-            ))
-        }
-        drawPath(crescent, CrimsonRed)
-
-        // 5-pointed red star inside the crescent opening
-        val starCx = cx + outerR * 0.55f
-        val starCy = cy
-        val starOR = outerR * 0.36f
-        val starIR = starOR * 0.40f
-        val star = androidx.compose.ui.graphics.Path().apply {
-            for (i in 0..9) {
-                val r = if (i % 2 == 0) starOR else starIR
-                val ang = (i * 36.0 - 90.0) * kotlin.math.PI / 180.0
-                val vx = starCx + r * kotlin.math.cos(ang).toFloat()
-                val vy = starCy + r * kotlin.math.sin(ang).toFloat()
-                if (i == 0) moveTo(vx, vy) else lineTo(vx, vy)
-            }
-            close()
-        }
-        drawPath(star, CrimsonRed)
-    }
-}
-
-// ─── MyPass Brand Logo — emerald rounded square + ascending airplane mark ───
-@Composable
-private fun BrandLogo(
-    modifier: Modifier = Modifier,
-    cornerRadius: Int = 9,
-    showText: Boolean = false
-) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(
-            modifier = modifier
-                .clip(RoundedCornerShape(cornerRadius.dp))
-                .background(EmeraldGreen),
-            contentAlignment = Alignment.Center
-        ) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val cx = size.width / 2f
-                val cy = size.height / 2f
-                // Soft inner highlight (premium feel)
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(Color(0x22FFFFFF), Color.Transparent),
-                        center = Offset(size.width * 0.28f, size.height * 0.22f),
-                        radius = size.minDimension * 0.55f
-                    ),
-                    radius = size.minDimension * 0.55f,
-                    center = Offset(size.width * 0.28f, size.height * 0.22f)
-                )
-
-                // Ascending airplane silhouette (rotated -30°)
-                withTransform({
-                    translate(cx, cy)
-                    rotate(degrees = -30f, pivot = Offset.Zero)
-                }) {
-                    val s = size.minDimension * 0.017f
-                    val white = Color.White
-                    // Fuselage
-                    val fuselage = androidx.compose.ui.graphics.Path().apply {
-                        moveTo(-3f * s, -22f * s); lineTo(4f * s, -22f * s)
-                        lineTo(5f * s, -12f * s); lineTo(5f * s, 12f * s)
-                        lineTo(8f * s, 18f * s);  lineTo(8f * s, 22f * s)
-                        lineTo(2f * s, 21f * s);  lineTo(-2f * s, 21f * s)
-                        lineTo(-8f * s, 22f * s); lineTo(-8f * s, 18f * s)
-                        lineTo(-5f * s, 12f * s); lineTo(-5f * s, -12f * s); close()
-                    }
-                    drawPath(fuselage, white)
-                    // Main wings
-                    val wings = androidx.compose.ui.graphics.Path().apply {
-                        moveTo(-5f * s, -3f * s); lineTo(-26f * s, 8f * s)
-                        lineTo(-26f * s, 12f * s); lineTo(-5f * s, 5f * s)
-                        lineTo(5f * s, 5f * s);    lineTo(26f * s, 12f * s)
-                        lineTo(26f * s, 8f * s);   lineTo(5f * s, -3f * s); close()
-                    }
-                    drawPath(wings, white)
-                    // Tail
-                    val tail = androidx.compose.ui.graphics.Path().apply {
-                        moveTo(-10f * s, 15f * s); lineTo(-3f * s, 12f * s)
-                        lineTo(3f * s, 12f * s);   lineTo(10f * s, 15f * s)
-                        lineTo(10f * s, 18f * s);  lineTo(-10f * s, 18f * s); close()
-                    }
-                    drawPath(tail, white)
-                }
-            }
-        }
-        if (showText) {
-            Text(
-                "MyPass",
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.Black, letterSpacing = (-0.5).sp
-                ),
-                color = EmeraldGreen
-            )
-        }
-    }
-}
-
 // ═══════════════════════════════════════════════════════════════
 //  MAIN APP — root navigation host
 // ═══════════════════════════════════════════════════════════════
@@ -507,300 +391,7 @@ fun AirlineCheckInApp(
         }
     }
 }
-// ═══════════════════════════════════════════════════════════════
-//  SPLASH — Realistic side-view airplane gliding (homogeneous with app)
-// ═══════════════════════════════════════════════════════════════
-
-@Composable
-private fun SplashScreen(onFinished: () -> Unit) {
-    val context = LocalContext.current
-
-    val cloudShift   = remember { Animatable(0f) }   // parallax clouds
-    val planeProg    = remember { Animatable(0f) }   // 0 → 1 across the screen
-    val planeFade    = remember { Animatable(1f) }   // fade out at end
-    val logoAlpha    = remember { Animatable(0f) }
-    val logoScale    = remember { Animatable(0.92f) }
-    val wordAlpha    = remember { Animatable(0f) }
-    val wordY        = remember { Animatable(8f) }
-    val ruleProg     = remember { Animatable(0f) }
-    val taglineAlpha = remember { Animatable(0f) }
-
-    LaunchedEffect(Unit) {
-        // Clouds drift slowly (parallax)
-        launch { cloudShift.animateTo(1f, tween(3700, easing = LinearEasing)) }
-
-        // Plane glides smoothly across (left → right), subtle haptic at midpoint
-        launch {
-            delay(250)
-            planeProg.animateTo(1f, tween(2200, easing = FastOutSlowInEasing))
-            planeFade.animateTo(0f, tween(280))
-        }
-        launch {
-            delay(900)
-            triggerTakeoffHaptic(context)
-        }
-
-        // Logo + wordmark + tagline build up
-        launch {
-            delay(1700)
-            launch { logoAlpha.animateTo(1f, tween(450)) }
-            launch { logoScale.animateTo(1f, tween(550, easing = FastOutSlowInEasing)) }
-        }
-        launch {
-            delay(1900)
-            launch { wordAlpha.animateTo(1f, tween(500)) }
-            launch { wordY.animateTo(0f, tween(550, easing = FastOutSlowInEasing)) }
-        }
-        launch { ruleProg.animateTo(1f, tween(500, delayMillis = 2300, easing = FastOutSlowInEasing)) }
-        launch { taglineAlpha.animateTo(1f, tween(450, delayMillis = 2500)) }
-
-        delay(3400)
-        onFinished()
-    }
-
-    // Pre-computed cloud blobs (positions, sizes)
-    data class Cloud(val x: Float, val y: Float, val w: Float, val opacity: Float, val depth: Float)
-    val clouds = remember {
-        val rng = kotlin.random.Random(31)
-        List(7) {
-            Cloud(
-                x = rng.nextFloat() * 1.3f - 0.15f,
-                y = rng.nextFloat() * 0.35f + 0.08f,
-                w = rng.nextFloat() * 90f + 70f,
-                opacity = 0.04f + rng.nextFloat() * 0.05f,
-                depth = rng.nextFloat()
-            )
-        }
-    }
-
-    val cloudBaseColor = MaterialTheme.colorScheme.outlineVariant
-
-    Box(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-        contentAlignment = Alignment.Center
-    ) {
-        // ── Layer 1: soft drifting clouds (very pale, no contrast) ──
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            clouds.forEach { c ->
-                val parallaxShift = cloudShift.value * (-30f - 30f * c.depth)
-                val cx = (c.x * size.width + parallaxShift)
-                val cy = c.y * size.height
-                drawCloud(cx, cy, c.w.dp.toPx(), cloudBaseColor.copy(alpha = c.opacity), this)
-            }
-        }
-
-        // ── Layer 2: airplane gliding from left to right along a gentle arc ──
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            // Trajectory: gentle ascending arc, plane stays in upper third
-            val startX = -size.width * 0.10f
-            val startY = size.height * 0.48f
-            val ctrlX  = size.width * 0.50f
-            val ctrlY  = size.height * 0.30f
-            val endX   = size.width * 1.10f
-            val endY   = size.height * 0.22f
-
-            fun point(t: Float): Offset {
-                val omt = 1f - t
-                return Offset(
-                    omt * omt * startX + 2 * omt * t * ctrlX + t * t * endX,
-                    omt * omt * startY + 2 * omt * t * ctrlY + t * t * endY
-                )
-            }
-            fun tangent(t: Float): Float {
-                val dx = 2 * (1 - t) * (ctrlX - startX) + 2 * t * (endX - ctrlX)
-                val dy = 2 * (1 - t) * (ctrlY - startY) + 2 * t * (endY - ctrlY)
-                return kotlin.math.atan2(dy, dx)
-            }
-
-            val prog = planeProg.value
-            val fade = planeFade.value
-
-            if (prog > 0f && fade > 0f) {
-                // Smooth contrail: 50 segments
-                val tailLen = 50
-                for (i in 1..tailLen) {
-                    val tBack = (prog - i * 0.012f).coerceAtLeast(0f)
-                    if (tBack <= 0f) break
-                    val tNext = (tBack - 0.012f).coerceAtLeast(0f)
-                    val p1 = point(tBack)
-                    val p2 = point(tNext)
-                    val ratio = 1f - i / tailLen.toFloat()
-                    val alpha = ratio * ratio * 0.55f * fade
-                    val width = (3.5f * ratio + 0.4f).dp.toPx()
-                    drawLine(
-                        color = EmeraldGreen.copy(alpha = alpha),
-                        start = p1, end = p2,
-                        strokeWidth = width, cap = StrokeCap.Round
-                    )
-                }
-
-                // Side-view airplane silhouette (more realistic than top-down)
-                val head = point(prog)
-                val angleDeg = tangent(prog) * 57.2958f
-                withTransform({
-                    translate(head.x, head.y)
-                    rotate(degrees = angleDeg, pivot = Offset.Zero)
-                }) {
-                    drawAirplaneSideRealistic(fade)
-                }
-            }
-        }
-
-        // ── Layer 3: centered brand mark + wordmark ──
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.align(Alignment.Center)
-        ) {
-            BrandLogo(
-                modifier = Modifier
-                    .size(72.dp)
-                    .graphicsLayer {
-                        alpha = logoAlpha.value
-                        scaleX = logoScale.value; scaleY = logoScale.value
-                    },
-                cornerRadius = 18
-            )
-
-            Spacer(modifier = Modifier.height(22.dp))
-
-            Text(
-                "MyPass",
-                style = MaterialTheme.typography.displayMedium.copy(
-                    fontWeight = FontWeight.Black, letterSpacing = (-1.4).sp
-                ),
-                color = EmeraldGreen,
-                modifier = Modifier.graphicsLayer {
-                    alpha = wordAlpha.value
-                    translationY = wordY.value
-                }
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Canvas(modifier = Modifier.width(72.dp).height(1.dp)) {
-                val w = size.width * ruleProg.value
-                drawLine(
-                    color = EmeraldGreen.copy(alpha = 0.6f),
-                    start = Offset((size.width - w) / 2f, size.height / 2),
-                    end   = Offset((size.width + w) / 2f, size.height / 2),
-                    strokeWidth = 1.2f, cap = StrokeCap.Round
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                "EVERY JOURNEY MATTERS",
-                style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 3.sp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.graphicsLayer { alpha = taglineAlpha.value }
-            )
-        }
-    }
-}
-
-/** Soft, pale cloud blob — purely decorative for the splash. */
-private fun drawCloud(cx: Float, cy: Float, w: Float, color: Color, scope: DrawScope) {
-    with(scope) {
-        drawCircle(color, w * 0.28f, Offset(cx, cy))
-        drawCircle(color, w * 0.22f, Offset(cx + w * 0.22f, cy + w * 0.04f))
-        drawCircle(color, w * 0.18f, Offset(cx - w * 0.20f, cy + w * 0.06f))
-        drawCircle(color, w * 0.16f, Offset(cx + w * 0.40f, cy + w * 0.09f))
-        drawCircle(color, w * 0.14f, Offset(cx - w * 0.36f, cy + w * 0.10f))
-    }
-}
-
-/** Side-view airplane silhouette in emerald — drawn around (0,0), nose pointing +X.
- *  Use rotate() before calling to align with flight direction. */
-private fun DrawScope.drawAirplaneSideRealistic(alpha: Float) {
-    val color = EmeraldGreen.copy(alpha = alpha)
-    val accent = Color(0xFFCFE7D7).copy(alpha = alpha * 0.85f)
-    val s = 1.3f
-
-    // Fuselage (long capsule) — nose at right, tail at left
-    val fuselage = androidx.compose.ui.graphics.Path().apply {
-        moveTo(46f * s, 0f)
-        quadraticBezierTo(55f * s, -3f * s, 46f * s, -6f * s)
-        lineTo(-32f * s, -6f * s)
-        lineTo(-48f * s, -3f * s)
-        lineTo(-48f * s, 3f * s)
-        lineTo(-32f * s, 6f * s)
-        lineTo(46f * s, 6f * s)
-        quadraticBezierTo(55f * s, 3f * s, 46f * s, 0f)
-        close()
-    }
-    drawPath(fuselage, color)
-
-    // Main wing — swept-back (visible as a long delta below the fuselage)
-    val wing = androidx.compose.ui.graphics.Path().apply {
-        moveTo(8f * s, 3f * s)
-        lineTo(-18f * s, 22f * s)
-        lineTo(-6f * s, 23f * s)
-        lineTo(22f * s, 5f * s)
-        close()
-    }
-    drawPath(wing, color)
-
-    // Vertical tail fin (rises behind tail)
-    val vFin = androidx.compose.ui.graphics.Path().apply {
-        moveTo(-36f * s, -6f * s)
-        lineTo(-44f * s, -22f * s)
-        lineTo(-48f * s, -6f * s)
-        close()
-    }
-    drawPath(vFin, color)
-
-    // Horizontal stabilizer
-    val hStab = androidx.compose.ui.graphics.Path().apply {
-        moveTo(-38f * s, -2f * s)
-        lineTo(-50f * s, -8f * s)
-        lineTo(-42f * s, -2f * s)
-        close()
-    }
-    drawPath(hStab, color)
-
-    // Engine pod under wing
-    drawRoundRect(color,
-        topLeft = Offset(-4f * s, 12f * s),
-        size = Size(20f * s, 6f * s),
-        cornerRadius = CornerRadius(3f * s)
-    )
-
-    // Cockpit highlight
-    drawCircle(accent, 2.6f * s, Offset(40f * s, -2f * s))
-
-    // Row of cabin windows
-    for (i in 0..6) {
-        val wx = 32f * s - i * 9f * s
-        drawCircle(accent, 1.4f * s, Offset(wx, -1f * s))
-    }
-}
-
-/** Trigger a short takeoff haptic vibration (subtle, like a click+rumble). */
-private fun triggerTakeoffHaptic(context: android.content.Context) {
-    runCatching {
-        val vibrator = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            val vm = context.getSystemService(android.content.Context.VIBRATOR_MANAGER_SERVICE)
-                as android.os.VibratorManager
-            vm.defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as android.os.Vibrator
-        }
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            val effect = android.os.VibrationEffect.createWaveform(
-                longArrayOf(0, 40, 40, 80),
-                intArrayOf(0, 90, 0, 140),
-                -1
-            )
-            vibrator.vibrate(effect)
-        } else {
-            @Suppress("DEPRECATION")
-            vibrator.vibrate(110L)
-        }
-    }
-}
+// SplashScreen moved to ui/splash/SplashScreen.kt
 
 // ═══════════════════════════════════════════════════════════════
 //  AUTH — Sign In + Sign Up (international with real photography)
@@ -992,14 +583,35 @@ private fun SignInScreen(
         if (state.currentUser != null) onNavigateToHome()
     }
 
-    if (showGoogleDialog) {
-        GoogleSignInDialog(
-            onDismiss = { showGoogleDialog = false },
-            onConfirm = { confirmedEmail, confirmedName ->
-                showGoogleDialog = false
-                vm.signInWithGoogle(confirmedEmail, confirmedName)
+    // System Google account picker — shows the actual Google accounts on the device.
+    // No OAuth client setup required: uses Android's built-in AccountManager chooser.
+    val accountPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val pickedEmail = result.data?.getStringExtra(
+                android.accounts.AccountManager.KEY_ACCOUNT_NAME
+            )?.trim().orEmpty()
+            if (pickedEmail.isNotBlank()) {
+                val displayName = pickedEmail.substringBefore("@")
+                    .replace(".", " ").replace("_", " ").replace("-", " ")
+                    .split(" ").joinToString(" ") { w ->
+                        if (w.isNotEmpty()) w[0].uppercase() + w.substring(1) else w
+                    }
+                vm.signInWithGoogle(pickedEmail, displayName.ifBlank { pickedEmail })
+            } else {
+                vm.showMessage("No Google account selected.")
             }
+        }
+    }
+    val launchGooglePicker = {
+        val intent = android.accounts.AccountManager.newChooseAccountIntent(
+            null, null, arrayOf("com.google"),
+            null, null, null, null
         )
+        runCatching { accountPickerLauncher.launch(intent) }
+            .onFailure { vm.showMessage("Account picker unavailable: ${it.message}") }
+        Unit
     }
     if (showForgotDialog) {
         ForgotPasswordDialog(
@@ -1076,7 +688,7 @@ private fun SignInScreen(
                 Spacer(modifier = Modifier.height(18.dp))
 
                 OutlinedButton(
-                    onClick  = { showGoogleDialog = true },
+                    onClick  = { launchGooglePicker() },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape    = RoundedCornerShape(14.dp),
                     border   = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
@@ -1124,121 +736,6 @@ private fun SignInScreen(
 // Without a real OAuth client ID, this collects the user's email + display name
 // and sends it to the backend's /auth/google endpoint (creates a user if missing,
 // signs in if exists). Drop-in replacement once a real OAuth client is configured.
-@Composable
-private fun GoogleSignInDialog(
-    onDismiss: () -> Unit,
-    onConfirm: (email: String, name: String) -> Unit
-) {
-    var email by remember { mutableStateOf("") }
-    var name  by remember { mutableStateOf("") }
-    val emailValid = email.contains("@") && email.length >= 5
-    val nameValid  = name.trim().length >= 2
-
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("G", fontWeight = FontWeight.Black, fontSize = 20.sp, color = Color(0xFF4285F4))
-                Text("Continue with Google", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            }
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Enter the Google account you want to sign in with.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Your name") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = EmeraldGreen, focusedLabelColor = EmeraldGreen, cursorColor = EmeraldGreen
-                    )
-                )
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    label = { Text("Google email") },
-                    placeholder = { Text("you@gmail.com") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = EmeraldGreen, focusedLabelColor = EmeraldGreen, cursorColor = EmeraldGreen
-                    )
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { onConfirm(email.trim(), name.trim()) },
-                enabled = emailValid && nameValid,
-                colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen, contentColor = PureWhite),
-                shape = RoundedCornerShape(10.dp)
-            ) { Text("Sign in", fontWeight = FontWeight.SemiBold) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        },
-        containerColor = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(20.dp)
-    )
-}
-
-// ─── Forgot password dialog ───
-@Composable
-private fun ForgotPasswordDialog(
-    initialEmail: String,
-    onDismiss: () -> Unit,
-    onSent: (email: String) -> Unit
-) {
-    var email by remember { mutableStateOf(initialEmail) }
-    val emailValid = email.contains("@") && email.length >= 5
-
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text("Reset password", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Enter the email linked to your MyPass account. We'll send a reset link.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    label = { Text("Email") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = EmeraldGreen, focusedLabelColor = EmeraldGreen, cursorColor = EmeraldGreen
-                    )
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { onSent(email.trim()) },
-                enabled = emailValid,
-                colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen, contentColor = PureWhite),
-                shape = RoundedCornerShape(10.dp)
-            ) { Text("Send link", fontWeight = FontWeight.SemiBold) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        },
-        containerColor = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(20.dp)
-    )
-}
-
 @Composable
 private fun SignUpScreen(
     state: AppUiState, vm: AppViewModel,
@@ -1333,91 +830,6 @@ private fun SignUpScreen(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun CleanField(
-    label: String,
-    value: String,
-    keyboardType: KeyboardType = KeyboardType.Text,
-    isPassword: Boolean = false,
-    onValueChange: (String) -> Unit
-) {
-    OutlinedTextField(
-        value         = value,
-        onValueChange = onValueChange,
-        label         = { Text(label) },
-        modifier      = Modifier.fillMaxWidth(),
-        shape         = RoundedCornerShape(12.dp),
-        singleLine    = true,
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-        visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
-        colors        = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = EmeraldGreen,
-            unfocusedBorderColor= MaterialTheme.colorScheme.outline,
-            focusedLabelColor  = EmeraldGreen,
-            cursorColor        = EmeraldGreen
-        )
-    )
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  PRIMARY/SECONDARY BUTTONS — clean, modern
-// ═══════════════════════════════════════════════════════════════
-
-@Composable
-private fun PrimaryButton(
-    text: String,
-    onClick: () -> Unit,
-    enabled: Boolean = true,
-    loading: Boolean = false,
-    modifier: Modifier = Modifier,
-    leadingIcon: ImageVector? = null
-) {
-    Button(
-        onClick = onClick,
-        enabled = enabled && !loading,
-        modifier = modifier.fillMaxWidth().height(52.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = EmeraldGreen,
-            contentColor   = PureWhite,
-            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-            disabledContentColor   = MaterialTheme.colorScheme.outline
-        ),
-        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 1.dp)
-    ) {
-        if (loading) {
-            CircularProgressIndicator(color = PureWhite, strokeWidth = 2.dp,
-                modifier = Modifier.size(18.dp))
-        } else {
-            if (leadingIcon != null) {
-                Icon(leadingIcon, null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-            }
-            Text(text,
-                style = MaterialTheme.typography.titleMedium.copy(letterSpacing = 0.2.sp),
-                fontWeight = FontWeight.SemiBold)
-        }
-    }
-}
-
-@Composable
-private fun SecondaryButton(
-    text: String, onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    OutlinedButton(
-        onClick = onClick,
-        modifier = modifier.fillMaxWidth().height(52.dp),
-        shape    = RoundedCornerShape(14.dp),
-        border   = BorderStroke(1.5.dp, EmeraldGreen),
-        colors   = ButtonDefaults.outlinedButtonColors(contentColor = EmeraldGreen)
-    ) {
-        Text(text,
-            style = MaterialTheme.typography.titleSmall.copy(letterSpacing = 0.3.sp),
-            fontWeight = FontWeight.Bold)
     }
 }
 
