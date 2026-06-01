@@ -985,9 +985,31 @@ private fun SignInScreen(
 ) {
     var email    by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var showGoogleDialog by remember { mutableStateOf(false) }
+    var showForgotDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.currentUser) {
         if (state.currentUser != null) onNavigateToHome()
+    }
+
+    if (showGoogleDialog) {
+        GoogleSignInDialog(
+            onDismiss = { showGoogleDialog = false },
+            onConfirm = { confirmedEmail, confirmedName ->
+                showGoogleDialog = false
+                vm.signInWithGoogle(confirmedEmail, confirmedName)
+            }
+        )
+    }
+    if (showForgotDialog) {
+        ForgotPasswordDialog(
+            initialEmail = email,
+            onDismiss = { showForgotDialog = false },
+            onSent = { sentEmail ->
+                showForgotDialog = false
+                vm.showMessage("If $sentEmail is registered, a reset link has been sent.")
+            }
+        )
     }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -1028,7 +1050,7 @@ private fun SignInScreen(
 
                 Spacer(modifier = Modifier.height(6.dp))
                 TextButton(
-                    onClick = {},
+                    onClick = { showForgotDialog = true },
                     modifier = Modifier.align(Alignment.End),
                     contentPadding = PaddingValues(horizontal = 4.dp)
                 ) { Text("Forgot password?", color = EmeraldGreen, fontWeight = FontWeight.SemiBold) }
@@ -1054,7 +1076,7 @@ private fun SignInScreen(
                 Spacer(modifier = Modifier.height(18.dp))
 
                 OutlinedButton(
-                    onClick  = { vm.signInWithGoogle() },
+                    onClick  = { showGoogleDialog = true },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape    = RoundedCornerShape(14.dp),
                     border   = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
@@ -1096,6 +1118,125 @@ private fun SignInScreen(
             }
         }
     }
+}
+
+// ─── Google Sign-In dialog ───
+// Without a real OAuth client ID, this collects the user's email + display name
+// and sends it to the backend's /auth/google endpoint (creates a user if missing,
+// signs in if exists). Drop-in replacement once a real OAuth client is configured.
+@Composable
+private fun GoogleSignInDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (email: String, name: String) -> Unit
+) {
+    var email by remember { mutableStateOf("") }
+    var name  by remember { mutableStateOf("") }
+    val emailValid = email.contains("@") && email.length >= 5
+    val nameValid  = name.trim().length >= 2
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("G", fontWeight = FontWeight.Black, fontSize = 20.sp, color = Color(0xFF4285F4))
+                Text("Continue with Google", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Enter the Google account you want to sign in with.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Your name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = EmeraldGreen, focusedLabelColor = EmeraldGreen, cursorColor = EmeraldGreen
+                    )
+                )
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("Google email") },
+                    placeholder = { Text("you@gmail.com") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = EmeraldGreen, focusedLabelColor = EmeraldGreen, cursorColor = EmeraldGreen
+                    )
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(email.trim(), name.trim()) },
+                enabled = emailValid && nameValid,
+                colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen, contentColor = PureWhite),
+                shape = RoundedCornerShape(10.dp)
+            ) { Text("Sign in", fontWeight = FontWeight.SemiBold) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(20.dp)
+    )
+}
+
+// ─── Forgot password dialog ───
+@Composable
+private fun ForgotPasswordDialog(
+    initialEmail: String,
+    onDismiss: () -> Unit,
+    onSent: (email: String) -> Unit
+) {
+    var email by remember { mutableStateOf(initialEmail) }
+    val emailValid = email.contains("@") && email.length >= 5
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text("Reset password", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Enter the email linked to your MyPass account. We'll send a reset link.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("Email") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = EmeraldGreen, focusedLabelColor = EmeraldGreen, cursorColor = EmeraldGreen
+                    )
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSent(email.trim()) },
+                enabled = emailValid,
+                colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen, contentColor = PureWhite),
+                shape = RoundedCornerShape(10.dp)
+            ) { Text("Send link", fontWeight = FontWeight.SemiBold) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(20.dp)
+    )
 }
 
 @Composable
@@ -1403,6 +1544,7 @@ private fun HomeTab(
     onStartCheckIn: () -> Unit
 ) {
     val user = state.currentUser
+    val ctx = LocalContext.current
     var bookingRef by rememberSaveable { mutableStateOf("") }
     var lastName   by rememberSaveable { mutableStateOf("") }
 
@@ -1547,8 +1689,22 @@ private fun HomeTab(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 QuickChip(Icons.Filled.QrCodeScanner, "Check-in", EmeraldGreen, onStartCheckIn, modifier = Modifier.weight(1f))
-                QuickChip(Icons.Filled.AccessTime, "Status", StatusInfo, {}, modifier = Modifier.weight(1f))
-                QuickChip(Icons.Filled.SupportAgent, "Support", CharcoalGray, {}, modifier = Modifier.weight(1f))
+                QuickChip(Icons.Filled.AccessTime, "Status", StatusInfo, {
+                    val first = state.cachedFlights.firstOrNull()
+                    if (first != null) {
+                        vm.showMessage("${first.flightNumber} · ${first.checkInStatus} · Gate ${first.gate}, Term ${first.terminal}")
+                    } else {
+                        vm.showMessage("No flights yet — search a booking to see status.")
+                    }
+                }, modifier = Modifier.weight(1f))
+                QuickChip(Icons.Filled.SupportAgent, "Support", CharcoalGray, {
+                    val intent = android.content.Intent(android.content.Intent.ACTION_SENDTO).apply {
+                        data = android.net.Uri.parse("mailto:support@mypass.dz")
+                        putExtra(android.content.Intent.EXTRA_SUBJECT, "MyPass support request")
+                    }.apply { addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK) }
+                    runCatching { ctx.startActivity(intent) }
+                        .onFailure { vm.showMessage("No email app installed.") }
+                }, modifier = Modifier.weight(1f))
             }
         }
 
@@ -2194,6 +2350,15 @@ private fun ProfileTab(
     onOpenPreferences: () -> Unit, onLogout: () -> Unit
 ) {
     val user = state.currentUser
+    val ctx = LocalContext.current
+    val openMailIntent: (String, String) -> Unit = { addr, subj ->
+        val intent = android.content.Intent(android.content.Intent.ACTION_SENDTO).apply {
+            data = android.net.Uri.parse("mailto:$addr")
+            putExtra(android.content.Intent.EXTRA_SUBJECT, subj)
+            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        runCatching { ctx.startActivity(intent) }
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp)
@@ -2259,9 +2424,11 @@ private fun ProfileTab(
             ProfileMenuGroup {
                 ProfileMenuItem(Icons.Filled.Person,        "Personal information", onClick = onOpenPreferences)
                 Divider2()
-                ProfileMenuItem(Icons.Filled.ConfirmationNumber, "My bookings", onClick = {})
+                ProfileMenuItem(Icons.Filled.ConfirmationNumber, "My bookings",
+                    onClick = { /* Trips tab is selected from bottom nav */ })
                 Divider2()
-                ProfileMenuItem(Icons.Filled.Shield,        "Passport & documents", onClick = {})
+                ProfileMenuItem(Icons.Filled.Shield, "Passport & documents",
+                    onClick = onOpenPreferences)
             }
         }
         item { Spacer(modifier = Modifier.height(16.dp)) }
@@ -2279,7 +2446,8 @@ private fun ProfileTab(
         item { ProfileSectionLabel("Support") }
         item {
             ProfileMenuGroup {
-                ProfileMenuItem(Icons.Filled.SupportAgent,"Help center",      onClick = {})
+                ProfileMenuItem(Icons.Filled.SupportAgent, "Help center",
+                    onClick = { openMailIntent("support@mypass.dz", "MyPass help request") })
                 Divider2()
                 ProfileMenuItem(Icons.AutoMirrored.Filled.Logout, "Log out",
                     iconTint = StatusError, onClick = onLogout)
@@ -3158,13 +3326,14 @@ private fun BoardingPassScreen(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface)
                     }
-                    // Add to Wallet — solid brand button
+                    // Add to Wallet — saves PDF and opens Share sheet
+                    // (Google Wallet, Drive, Files, Email, etc.)
                     Button(
                         onClick = {
                             scope.launch {
                                 try {
-                                    val fileName = vm.saveBoardingPassPdf(context, pass)
-                                    vm.showMessage("Added to Wallet • $fileName")
+                                    vm.shareBoardingPass(context, pass)
+                                    vm.showMessage("Boarding pass saved to Downloads")
                                 } catch (e: Exception) {
                                     vm.showMessage("Failed: ${e.message}")
                                 }
@@ -3455,6 +3624,7 @@ private fun PreferencesScreen(
     s: (String) -> String, onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    val ctx = LocalContext.current
     var darkMode    by remember { mutableStateOf(isDarkMode) }
     var selectedLang by remember { mutableStateOf(currentLanguage) }
     var notificationsEnabled by remember { mutableStateOf(true) }
@@ -3462,6 +3632,16 @@ private fun PreferencesScreen(
     var serverUrl by remember { mutableStateOf(com.example.myapplication.network.RetrofitClient.getBaseUrl()) }
     var serverStatus by remember { mutableStateOf<String?>(null) }
     var probing by remember { mutableStateOf(false) }
+
+    // Notification permission launcher (Android 13+)
+    val notifPermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (!granted) {
+            notificationsEnabled = false
+            scope.launch { preferencesManager?.setNotifications(false) }
+        }
+    }
 
     LaunchedEffect(preferencesManager) { preferencesManager?.notificationsEnabled?.collect { notificationsEnabled = it } }
     LaunchedEffect(preferencesManager) { preferencesManager?.biometricEnabled?.collect { biometricEnabled = it } }
@@ -3615,8 +3795,15 @@ private fun PreferencesScreen(
                         Spacer(modifier = Modifier.width(14.dp))
                         Text("Push notifications", style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-                        Switch(checked = notificationsEnabled, onCheckedChange = {
-                            notificationsEnabled = it; scope.launch { preferencesManager?.setNotifications(it) }
+                        Switch(checked = notificationsEnabled, onCheckedChange = { wanted ->
+                            notificationsEnabled = wanted
+                            scope.launch { preferencesManager?.setNotifications(wanted) }
+                            if (wanted && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                                val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+                                    ctx, android.Manifest.permission.POST_NOTIFICATIONS
+                                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                                if (!granted) notifPermLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                            }
                         }, colors = SwitchDefaults.colors(checkedTrackColor = EmeraldGreen))
                     }
                     Divider2()
