@@ -1,4 +1,4 @@
-package com.example.myapplication.ui
+package com.example.myapplication.viewmodel
 
 import android.app.Application
 import android.app.NotificationChannel
@@ -14,8 +14,8 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.myapplication.R
-import com.example.myapplication.data.AppRepository
 import com.example.myapplication.data.NetworkMonitor
+import com.example.myapplication.repository.AppRepository
 import com.example.myapplication.model.*
 import com.google.android.gms.tasks.Task
 import com.google.mlkit.vision.common.InputImage

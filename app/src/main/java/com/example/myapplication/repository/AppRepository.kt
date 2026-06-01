@@ -1,4 +1,4 @@
-package com.example.myapplication.data
+package com.example.myapplication.repository
 
 import android.content.Context
 import com.example.myapplication.model.*
