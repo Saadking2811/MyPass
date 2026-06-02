@@ -1,5 +1,6 @@
 package com.example.myapplication.ui.profile
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -39,22 +40,25 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myapplication.ui.components.Divider2
-import com.example.myapplication.ui.components.GoldAccent
 import com.example.myapplication.ui.components.ProfileMenuGroup
 import com.example.myapplication.ui.components.ProfileMenuItem
 import com.example.myapplication.ui.components.ProfileSectionLabel
 import com.example.myapplication.ui.theme.DeepGold
 import com.example.myapplication.ui.theme.EmeraldGreen
+import com.example.myapplication.ui.theme.PureWhite
 import com.example.myapplication.ui.theme.SoftGold
 import com.example.myapplication.ui.theme.StatusError
 import com.example.myapplication.viewmodel.AppUiState
 
-/** Bottom-nav "Profile" tab — header card with Gold badge plus three grouped menus. */
+/** Bottom-nav "Profile" tab — gradient hero with avatar + Gold badge, then grouped menus. */
 @Composable
 fun ProfileTab(
     state: AppUiState,
@@ -73,75 +77,18 @@ fun ProfileTab(
         runCatching { ctx.startActivity(intent) }
     }
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                GoldAccent(modifier = Modifier.height(28.dp))
-                Spacer(modifier = Modifier.width(10.dp))
-                Column {
-                    Text(
-                        "Profile",
-                        style = MaterialTheme.typography.headlineMedium.copy(
-                            fontWeight = FontWeight.Black, letterSpacing = (-0.6).sp
-                        )
-                    )
-                    Text(
-                        "Account & preferences",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+            ProfileHero(
+                name = user?.fullName ?: "Guest",
+                email = user?.email ?: "Sign in to access your trips",
+                miles = "12,840"
+            )
         }
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                shape    = RoundedCornerShape(18.dp),
-                colors   = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation= CardDefaults.cardElevation(2.dp)
-            ) {
-                Row(modifier = Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier.size(56.dp).clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primaryContainer)
-                            .border(1.dp, EmeraldGreen.copy(0.3f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            user?.fullName?.take(1)?.uppercase() ?: "G",
-                            style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black,
-                            color = EmeraldGreen
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(14.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(user?.fullName ?: "Guest", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text(
-                            user?.email ?: "Sign in to access your trips",
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(SoftGold).padding(horizontal = 8.dp, vertical = 3.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Icon(Icons.Filled.Star, null, tint = DeepGold, modifier = Modifier.size(11.dp))
-                            Text("GOLD", style = MaterialTheme.typography.labelSmall, color = DeepGold, fontWeight = FontWeight.Black)
-                        }
-                    }
-                }
-            }
-        }
-        item { Spacer(modifier = Modifier.height(20.dp)) }
+
+        item { Spacer(modifier = Modifier.height(8.dp)) }
         item { ProfileSectionLabel("Account") }
         item {
             ProfileMenuGroup {
@@ -178,19 +125,155 @@ fun ProfileTab(
                 )
             }
         }
-        item { Spacer(modifier = Modifier.height(20.dp)) }
+        item { Spacer(modifier = Modifier.height(24.dp)) }
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    "MyPass v1.0  ·  Made in Algeria",
+                    "MyPass v1.0  ·  Made with care",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "© 2026 MyPass · ENSI 2CS SIL",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.outline
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ProfileHero(name: String, email: String, miles: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(260.dp)
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        EmeraldGreen,
+                        Color(0xFF003520),
+                        Color(0xFF002418)
+                    )
+                )
+            )
+    ) {
+        // Decorative soft rings
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val cx = size.width * 0.12f
+            val cy = size.height * 0.85f
+            for (r in listOf(180f, 130f, 80f)) {
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.05f),
+                    radius = r,
+                    center = Offset(cx, cy)
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars)
+                .padding(horizontal = 20.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Text(
+                "Profile",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Black, letterSpacing = (-0.4).sp
+                ),
+                color = PureWhite
+            )
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(72.dp).clip(CircleShape)
+                        .background(PureWhite)
+                        .border(2.dp, SoftGold.copy(alpha = 0.7f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        name.take(1).uppercase(),
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Black, color = EmeraldGreen
+                    )
+                }
+                Spacer(modifier = Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        name,
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Black, letterSpacing = (-0.4).sp
+                        ),
+                        color = PureWhite
+                    )
+                    Text(
+                        email,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = PureWhite.copy(alpha = 0.75f)
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(SoftGold)
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Icon(Icons.Filled.Star, null, tint = DeepGold, modifier = Modifier.size(12.dp))
+                            Text(
+                                "GOLD · $miles MILES",
+                                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.2.sp),
+                                color = DeepGold, fontWeight = FontWeight.Black
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Floating KPI tiles
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                HeroStat("Tier",         "Gold",   modifier = Modifier.weight(1f))
+                HeroStat("Member since", "2024",   modifier = Modifier.weight(1f))
+                HeroStat("Status",       "Active", modifier = Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeroStat(label: String, value: String, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier,
+        shape    = RoundedCornerShape(12.dp),
+        colors   = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.14f)),
+        elevation= CardDefaults.cardElevation(0.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                label.uppercase(),
+                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.2.sp),
+                color = PureWhite.copy(alpha = 0.65f), fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                value,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Black, letterSpacing = (-0.3).sp
+                ),
+                color = PureWhite
+            )
         }
     }
 }
