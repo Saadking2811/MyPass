@@ -25,6 +25,9 @@ data class AppUiState(
     val isRestoringSession: Boolean = true,
     val statusMessage: String? = null,
     val passportRawText: String = "",
+    /** Human-readable issues detected when the scanned passport is cross-checked
+     *  with the booking (expired, name mismatch, …). Empty when everything matches. */
+    val passportIssues: List<String> = emptyList(),
     val checkInStep: Int = 0,
     /** true = login, false = register. */
     val isAuthMode: Boolean = true

@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -26,9 +27,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import com.example.myapplication.ocr.MrzParser
 import com.example.myapplication.ui.components.PrimaryButton
 import com.example.myapplication.ui.components.ScreenScaffold
+import com.example.myapplication.ui.theme.CrimsonRed
 import com.example.myapplication.ui.theme.EmeraldGreen
 import com.example.myapplication.ui.theme.MintGreen
 import com.example.myapplication.viewmodel.AppUiState
@@ -37,12 +40,20 @@ import com.example.myapplication.viewmodel.AppUiState
 @Composable
 fun DetailsReviewScreen(state: AppUiState, onNext: () -> Unit, onBack: () -> Unit) {
     val draft = state.draft ?: return
+    val hasBlockingIssue = state.passportIssues.any {
+        it.contains("expired", ignoreCase = true) ||
+        it.contains("does not match", ignoreCase = true)
+    }
     ScreenScaffold(
         title = "Review details", subtitle = "Step 3 of 6", onBack = onBack,
         bottomBar = {
             Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 8.dp, modifier = Modifier.fillMaxWidth()) {
                 Box(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
-                    PrimaryButton("Continue to seat selection", onClick = onNext)
+                    PrimaryButton(
+                        if (hasBlockingIssue) "Cannot proceed — see warnings" else "Continue to seat selection",
+                        onClick = onNext,
+                        enabled = !hasBlockingIssue
+                    )
                 }
             }
         }
@@ -51,6 +62,9 @@ fun DetailsReviewScreen(state: AppUiState, onNext: () -> Unit, onBack: () -> Uni
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            if (state.passportIssues.isNotEmpty()) {
+                PassportIssuesCard(issues = state.passportIssues, isBlocking = hasBlockingIssue)
+            }
             Card(
                 modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -84,6 +98,44 @@ fun DetailsReviewScreen(state: AppUiState, onNext: () -> Unit, onBack: () -> Uni
                         DetailRow("Birth",        passport.dateOfBirth)
                         DetailRow("Expiry",       passport.expiryDate)
                     }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Red/amber warning card listing every issue the validator found between the
+ * scanned passport and the booking. Blocking issues (expired / name mismatch)
+ * also disable the Continue button via the caller's `enabled` flag.
+ */
+@Composable
+private fun PassportIssuesCard(issues: List<String>, isBlocking: Boolean) {
+    val accent = if (isBlocking) CrimsonRed else Color(0xFFE69A00)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape    = RoundedCornerShape(16.dp),
+        colors   = CardDefaults.cardColors(containerColor = accent.copy(alpha = 0.08f)),
+        elevation= CardDefaults.cardElevation(0.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Filled.WarningAmber, null, tint = accent, modifier = Modifier.size(22.dp))
+                Text(
+                    if (isBlocking) "Cannot proceed with this booking" else "Passport warnings",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Black,
+                    color = accent
+                )
+            }
+            issues.forEach { issue ->
+                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("•", color = accent, fontWeight = FontWeight.Black)
+                    Text(
+                        issue,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                 }
             }
         }

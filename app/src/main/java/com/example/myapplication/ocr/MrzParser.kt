@@ -349,6 +349,12 @@ object MrzParser {
     private fun fixLetters(s: String): String = s.map { toLetter(it) }.joinToString("")
 
     /**
+     * Letters that are easily mistaken for the MRZ filler character `<` by OCR.
+     * Used by [cleanFirstName] and [splitCompoundName] to detect orphan filler residues.
+     */
+    private val ORPHAN_LETTERS = setOf('C', 'K', 'L', 'T', 'I', 'F', 'V', 'J', 'Y')
+
+    /**
      * Apply per-position character-class corrections to TD3 line 2 (44 chars).
      * Layout:
      *   Pos 0-8   numeric  (passport number — alphanumeric in spec but mostly digits)
@@ -469,16 +475,23 @@ object MrzParser {
     private fun cleanFirstName(first: String): String {
         var words = first.split(' ').filter { it.isNotBlank() }.toMutableList()
 
-        // Step 1: strip a lone 1-char first word
-        if (words.size >= 2 && words[0].length == 1) words.removeAt(0)
+        // Step 1: strip lone 1-char first/last words (often misread `<` fillers)
+        while (words.size >= 2 && words[0].length == 1) words.removeAt(0)
+        while (words.size >= 2 && words.last().length == 1) words.removeAt(words.size - 1)
 
         // Step 2: strip leading orphan letter glued to the first word
-        val orphanLetters = setOf('C', 'L', 'K', 'T', 'I', 'F')
+        val orphanLetters = ORPHAN_LETTERS
         if (words.isNotEmpty()) {
             val w0 = words[0]
             if (w0.length in 5..14 && w0[0] in orphanLetters &&
                 w0.drop(1).length >= 3 && w0.drop(1).all { it.isLetter() }) {
                 words[0] = w0.drop(1)
+            }
+            // Also strip trailing orphan letter glued to the last word
+            val wLast = words.last()
+            if (wLast.length in 5..14 && wLast.last() in orphanLetters &&
+                wLast.dropLast(1).length >= 3 && wLast.dropLast(1).all { it.isLetter() }) {
+                words[words.size - 1] = wLast.dropLast(1)
             }
         }
 
@@ -499,7 +512,7 @@ object MrzParser {
      */
     private fun splitCompoundName(word: String): List<String> {
         if (word.length < 7 || !word.all { it.isLetter() }) return listOf(word)
-        val orphanLetters = setOf('C', 'K', 'L', 'T', 'I', 'F')
+        val orphanLetters = ORPHAN_LETTERS
 
         // Scan positions where an orphan letter sits between two letter neighbours,
         // and the right-hand half looks like a proper name (starts with a strong consonant

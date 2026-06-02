@@ -39,7 +39,6 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material3.Card
@@ -79,11 +78,9 @@ import com.example.myapplication.ui.components.GoldAccent
 import com.example.myapplication.ui.components.PrimaryButton
 import com.example.myapplication.ui.theme.CharcoalGray
 import com.example.myapplication.ui.theme.CrimsonRed
-import com.example.myapplication.ui.theme.DeepGold
 import com.example.myapplication.ui.theme.EmeraldGreen
 import com.example.myapplication.ui.theme.PureWhite
 import com.example.myapplication.ui.theme.SeatOccupied
-import com.example.myapplication.ui.theme.SoftGold
 import com.example.myapplication.ui.theme.StatusInfo
 import com.example.myapplication.ui.theme.StatusSuccess
 import com.example.myapplication.ui.theme.StatusWarning
@@ -93,7 +90,7 @@ import com.example.myapplication.ui.util.popularDestinations
 import com.example.myapplication.viewmodel.AppUiState
 import com.example.myapplication.viewmodel.AppViewModel
 
-/** Bottom-nav "Home" tab — emerald gradient hero, KPIs, search, destinations and trips. */
+/** Bottom-nav "Home" tab — compact emerald hero, search, next trip and inspiration. */
 @Composable
 fun HomeTab(
     state: AppUiState, vm: AppViewModel, s: (String) -> String,
@@ -108,19 +105,17 @@ fun HomeTab(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(bottom = 32.dp)
     ) {
-        // ── 1. Emerald gradient hero with brand, greeting and KPIs ──
+        // ── 1. Compact emerald hero — fully filled, no decorative shapes ──
         item {
             EmeraldHeroSection(
                 fullName = user?.fullName,
-                isOnline = state.isOnline,
-                tripsCount = state.cachedFlights.size,
-                passesCount = state.cachedBoardingPasses.size
+                isOnline = state.isOnline
             )
         }
 
-        // ── 2. Search card — overlapping the hero ──
+        // ── 2. Search card overlapping the hero (premium airline app pattern) ──
         item {
-            Box(modifier = Modifier.offset(y = (-24).dp)) {
+            Box(modifier = Modifier.offset(y = (-30).dp)) {
                 SearchCard(
                     bookingRef = bookingRef,
                     lastName   = lastName,
@@ -139,7 +134,19 @@ fun HomeTab(
             }
         }
 
-        // ── 3. Quick action chips ──
+        // ── 3. Next trip card (Air France / Emirates style) OR Discover featured ──
+        item {
+            val nextFlight = state.cachedFlights.firstOrNull()
+            if (nextFlight != null) {
+                NextTripCard(flight = nextFlight, onCheckIn = onStartCheckIn)
+            } else {
+                FeaturedDiscoveryCard()
+            }
+        }
+
+        item { Spacer(modifier = Modifier.height(20.dp)) }
+
+        // ── 4. Quick chips ──
         item {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
@@ -165,12 +172,7 @@ fun HomeTab(
             }
         }
 
-        item { Spacer(modifier = Modifier.height(24.dp)) }
-
-        // ── 4. Gold membership banner ──
-        item { GoldMembershipCard(name = user?.fullName ?: "Traveler") }
-
-        item { Spacer(modifier = Modifier.height(24.dp)) }
+        item { Spacer(modifier = Modifier.height(28.dp)) }
 
         // ── 5. Promo banner ──
         item { PromoBanner() }
@@ -191,11 +193,11 @@ fun HomeTab(
 
         item { Spacer(modifier = Modifier.height(28.dp)) }
 
-        // ── 7. Upcoming flights ──
-        if (state.cachedFlights.isNotEmpty()) {
-            item { SectionHeader("Your upcoming flights", null) {} }
+        // ── 7. Upcoming flights list (if any) ──
+        if (state.cachedFlights.size > 1) {
+            item { SectionHeader("Other upcoming flights", null) {} }
             item { Spacer(modifier = Modifier.height(12.dp)) }
-            items(state.cachedFlights.take(3)) { flight ->
+            items(state.cachedFlights.drop(1).take(3)) { flight ->
                 Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) {
                     FlightSummaryCard(flight, s)
                 }
@@ -261,7 +263,7 @@ fun HomeTab(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Spacer(modifier = Modifier.height(14.dp))
                 Text(
-                    "MyPass · Made with care for travelers",
+                    "MyPass · Every journey matters",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.SemiBold
@@ -278,21 +280,18 @@ fun HomeTab(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  HERO — emerald gradient header with brand, greeting and KPI tiles
+//  HERO — pure emerald gradient, no decorative shapes, fills the screen width
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun EmeraldHeroSection(
     fullName: String?,
-    isOnline: Boolean,
-    tripsCount: Int,
-    passesCount: Int
+    isOnline: Boolean
 ) {
     val firstName = fullName?.split(" ")?.first() ?: "Traveler"
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(280.dp)
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
@@ -302,21 +301,9 @@ private fun EmeraldHeroSection(
                     )
                 )
             )
+            .windowInsetsPadding(WindowInsets.statusBars)
     ) {
-        // Decorative concentric soft circles
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val cx = size.width * 0.92f
-            val cy = size.height * 0.18f
-            for (r in listOf(160f, 110f, 70f)) {
-                drawCircle(
-                    color = Color.White.copy(alpha = 0.05f),
-                    radius = r,
-                    center = Offset(cx, cy)
-                )
-            }
-        }
-
-        Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 36.dp)) {
             // Top bar — brand mark, MyPass wordmark, notifications, avatar
             Row(
                 modifier = Modifier
@@ -373,8 +360,10 @@ private fun EmeraldHeroSection(
                 }
             }
 
-            // Greeting block
-            Column(modifier = Modifier.padding(horizontal = 20.dp).padding(top = 10.dp)) {
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Greeting block — dense, no empty space
+            Column(modifier = Modifier.padding(horizontal = 20.dp)) {
                 Text(
                     "Hello, $firstName",
                     style = MaterialTheme.typography.headlineLarge.copy(
@@ -382,7 +371,7 @@ private fun EmeraldHeroSection(
                     ),
                     color = PureWhite
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     "Where are you heading next?",
                     style = MaterialTheme.typography.bodyMedium,
@@ -390,47 +379,21 @@ private fun EmeraldHeroSection(
                 )
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // KPI tiles row — floating above the gradient
-            Row(
+            // Subtle dashed flight path line at the bottom of the hero
+            Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    .padding(horizontal = 20.dp)
+                    .height(2.dp)
             ) {
-                KpiTile("Trips",        tripsCount.toString(),  modifier = Modifier.weight(1f))
-                KpiTile("Passes",       passesCount.toString(), modifier = Modifier.weight(1f))
-                KpiTile("Status", "Gold", isGold = true,         modifier = Modifier.weight(1f))
-            }
-        }
-    }
-}
-
-@Composable
-private fun KpiTile(label: String, value: String, isGold: Boolean = false, modifier: Modifier = Modifier) {
-    Card(
-        modifier = modifier,
-        shape    = RoundedCornerShape(14.dp),
-        colors   = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.14f)),
-        elevation= CardDefaults.cardElevation(0.dp),
-    ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                label.uppercase(),
-                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.4.sp),
-                color = PureWhite.copy(alpha = 0.7f),
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (isGold) Icon(Icons.Filled.Star, null, tint = SoftGold, modifier = Modifier.size(15.dp))
-                Text(
-                    value,
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.Black, letterSpacing = (-0.3).sp
-                    ),
-                    color = PureWhite
+                drawLine(
+                    color = Color.White.copy(alpha = 0.18f),
+                    start = Offset(0f, size.height / 2),
+                    end   = Offset(size.width, size.height / 2),
+                    strokeWidth = 1.0f,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 5f))
                 )
             }
         }
@@ -438,7 +401,7 @@ private fun KpiTile(label: String, value: String, isGold: Boolean = false, modif
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  SEARCH CARD — overlapping the hero (look like premium airline apps)
+//  SEARCH CARD — overlaps the hero
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
@@ -453,15 +416,13 @@ private fun SearchCard(
         modifier  = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
-            .shadow(elevation = 12.dp, shape = RoundedCornerShape(22.dp), spotColor = EmeraldGreen.copy(alpha = 0.3f)),
+            .shadow(elevation = 12.dp, shape = RoundedCornerShape(22.dp), spotColor = EmeraldGreen.copy(alpha = 0.35f)),
         shape     = RoundedCornerShape(22.dp),
         colors    = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column {
-            Box(modifier = Modifier.fillMaxWidth().height(3.dp).background(
-                Brush.horizontalGradient(listOf(EmeraldGreen, DeepGold, EmeraldGreen))
-            ))
+            Box(modifier = Modifier.fillMaxWidth().height(3.dp).background(EmeraldGreen))
             Column(modifier = Modifier.padding(20.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     GoldAccent(modifier = Modifier.height(22.dp))
@@ -520,100 +481,222 @@ private fun SearchCard(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  GOLD MEMBERSHIP — premium feel
+//  NEXT TRIP CARD — Air France / Emirates style. Big, prominent, with route.
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun GoldMembershipCard(name: String) {
+private fun NextTripCard(flight: FlightItinerary, onCheckIn: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp),
         shape    = RoundedCornerShape(20.dp),
+        colors   = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation= CardDefaults.cardElevation(4.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(
-                            Color(0xFF003520),
-                            EmeraldGreen,
-                            Color(0xFF1A6B47)
-                        )
-                    )
+        Column {
+            // Header label
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(EmeraldGreen)
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Filled.FlightTakeoff, null, tint = PureWhite, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    "NEXT TRIP",
+                    style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 1.6.sp),
+                    color = PureWhite,
+                    fontWeight = FontWeight.Black
                 )
-                .padding(20.dp)
-        ) {
-            // Dashed corner ornament
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val pad = 6f
-                val len = 60f
-                val paint = Color.White.copy(alpha = 0.25f)
-                drawLine(paint, Offset(size.width - pad - len, pad), Offset(size.width - pad, pad), 1.2f,
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(3f, 3f)))
-                drawLine(paint, Offset(size.width - pad, pad), Offset(size.width - pad, pad + len), 1.2f,
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(3f, 3f)))
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    flight.flightNumber,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = PureWhite,
+                    fontWeight = FontWeight.Bold
+                )
             }
 
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(SoftGold)
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
+            Column(modifier = Modifier.padding(20.dp)) {
+                // Route — big IATA codes
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            flight.origin,
+                            style = MaterialTheme.typography.displaySmall.copy(
+                                fontWeight = FontWeight.Black, letterSpacing = (-1.5).sp
+                            ),
+                            color = EmeraldGreen
+                        )
+                        Text(
+                            flight.originCity.uppercase(),
+                            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.2.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            flight.departureTime.takeLast(5),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    // Center divider with plane
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Icon(Icons.Filled.Star, null, tint = DeepGold, modifier = Modifier.size(12.dp))
-                            Text(
-                                "GOLD MEMBER",
-                                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.2.sp),
-                                color = DeepGold, fontWeight = FontWeight.Black
+                        Icon(
+                            Icons.Filled.FlightTakeoff, null,
+                            tint = EmeraldGreen, modifier = Modifier.size(26.dp)
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Canvas(modifier = Modifier.fillMaxWidth().height(1.dp)) {
+                            drawLine(
+                                color = SeatOccupied,
+                                start = Offset(8f, size.height / 2),
+                                end   = Offset(size.width - 8f, size.height / 2),
+                                strokeWidth = 1.2f,
+                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(4f, 4f))
                             )
                         }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            flight.duration.ifBlank { "—" },
+                            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                        Text(
+                            flight.destination,
+                            style = MaterialTheme.typography.displaySmall.copy(
+                                fontWeight = FontWeight.Black, letterSpacing = (-1.5).sp
+                            ),
+                            color = EmeraldGreen
+                        )
+                        Text(
+                            flight.destinationCity.uppercase(),
+                            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.2.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            flight.arrivalTime.takeLast(5),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 }
+
+                Spacer(modifier = Modifier.height(18.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Spacer(modifier = Modifier.height(14.dp))
-                Text(
-                    name.uppercase(),
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.Black, letterSpacing = (-0.4).sp
-                    ),
-                    color = PureWhite
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    "Member · MyPass Loyalty Program",
-                    style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.5.sp),
-                    color = PureWhite.copy(alpha = 0.75f)
-                )
-                Spacer(modifier = Modifier.height(16.dp))
+
+                // 3 detail items: date / gate / terminal
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    LoyaltyStat("Miles", "12,840")
-                    LoyaltyStat("Tier credits", "320")
-                    LoyaltyStat("Next reward", "1,160")
+                    DetailMini("Date",     flight.departureTime.take(10))
+                    DetailMini("Gate",     flight.gate.ifBlank { "—" })
+                    DetailMini("Terminal", flight.terminal.ifBlank { "1" })
                 }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                PrimaryButton(
+                    text = if (flight.checkInStatus == "Checked-In") "View boarding pass" else "Check in now",
+                    leadingIcon = Icons.Filled.QrCodeScanner,
+                    onClick = onCheckIn
+                )
             }
         }
     }
 }
 
 @Composable
-private fun LoyaltyStat(label: String, value: String) {
+private fun DetailMini(label: String, value: String) {
     Column {
         Text(
             label.uppercase(),
             style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.2.sp),
-            color = PureWhite.copy(alpha = 0.65f), fontWeight = FontWeight.SemiBold
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.SemiBold
         )
-        Spacer(modifier = Modifier.height(2.dp))
+        Spacer(modifier = Modifier.height(3.dp))
         Text(
             value,
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black, letterSpacing = (-0.3).sp),
-            color = PureWhite
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Black,
+            color = EmeraldGreen
         )
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  FEATURED DISCOVERY — shown when user has no upcoming flight
+//  Big photographic card with title overlay, used by Skyscanner/Trip.com
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun FeaturedDiscoveryCard() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .height(240.dp),
+        shape    = RoundedCornerShape(20.dp),
+        elevation= CardDefaults.cardElevation(4.dp)
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current).data(Img.HERO_AIRPORT).crossfade(true).build(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            Box(modifier = Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.4f), Color.Black.copy(alpha = 0.85f)),
+                    startY = 40f
+                )
+            ))
+            Column(modifier = Modifier.align(Alignment.BottomStart).padding(20.dp)) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(EmeraldGreen)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        "DISCOVER",
+                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.6.sp),
+                        color = PureWhite, fontWeight = FontWeight.Black
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "Your next adventure",
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontWeight = FontWeight.Black, letterSpacing = (-0.6).sp
+                    ),
+                    color = PureWhite
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    "Search a booking to start your journey",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = PureWhite.copy(alpha = 0.85f)
+                )
+            }
+        }
     }
 }
 

@@ -16,6 +16,7 @@ import com.example.myapplication.repository.AppRepository
 import com.example.myapplication.util.BoardingPassPdfGenerator
 import com.example.myapplication.util.BoardingPassSharer
 import com.example.myapplication.util.CheckInNotifier
+import com.example.myapplication.util.PassportValidator
 import com.example.myapplication.util.QrGenerator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -211,10 +212,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun attachPassportInfo(info: PassportInfo) {
         _uiState.update { state ->
+            val issues = state.draft?.itinerary?.let { PassportValidator.validate(info, it) }.orEmpty()
+            val msg = when {
+                issues.isEmpty() -> "Passport information extracted successfully."
+                else -> issues.first()
+            }
             state.copy(
                 passportRawText = info.rawText,
+                passportIssues = issues,
                 draft = state.draft?.copy(passportInfo = info),
-                statusMessage = "Passport information extracted successfully."
+                statusMessage = msg
             )
         }
     }
@@ -311,7 +318,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update {
             it.copy(
                 lookupResult = null, draft = null, seatMap = emptyList(),
-                latestBoardingPass = null, checkInStep = 0
+                latestBoardingPass = null, checkInStep = 0,
+                passportIssues = emptyList()
             )
         }
     }
