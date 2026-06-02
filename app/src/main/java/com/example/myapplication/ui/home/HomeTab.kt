@@ -72,6 +72,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.example.myapplication.model.BoardingPass
 import com.example.myapplication.model.FlightItinerary
 import com.example.myapplication.ui.components.BrandLogo
 import com.example.myapplication.ui.components.GoldAccent
@@ -94,7 +95,8 @@ import com.example.myapplication.viewmodel.AppViewModel
 @Composable
 fun HomeTab(
     state: AppUiState, vm: AppViewModel, s: (String) -> String,
-    onStartCheckIn: () -> Unit
+    onStartCheckIn: () -> Unit,
+    onViewPass: (BoardingPass) -> Unit = {}
 ) {
     val user = state.currentUser
     val ctx = LocalContext.current
@@ -212,7 +214,7 @@ fun HomeTab(
             items(state.cachedBoardingPasses.take(3)) { pass ->
                 Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) {
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().clickable { onViewPass(pass) },
                         shape    = RoundedCornerShape(16.dp),
                         colors   = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         elevation= CardDefaults.cardElevation(2.dp)

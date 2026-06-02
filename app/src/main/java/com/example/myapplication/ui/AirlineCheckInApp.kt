@@ -147,6 +147,10 @@ fun AirlineCheckInApp(
                         onLogout = {
                             vm.logout()
                             navController.navigate(Routes.SIGN_IN) { popUpTo(0) { inclusive = true } }
+                        },
+                        onViewPass = { pass ->
+                            vm.viewBoardingPass(pass)
+                            navController.navigate(Routes.PASS)
                         }
                     )
                 }

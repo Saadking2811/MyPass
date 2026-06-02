@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.myapplication.model.BoardingPass
 import com.example.myapplication.ui.explore.ExploreTab
 import com.example.myapplication.ui.home.HomeTab
 import com.example.myapplication.ui.profile.ProfileTab
@@ -52,7 +53,8 @@ fun MainScaffold(
     s: (String) -> String,
     onStartCheckIn: () -> Unit,
     onOpenPreferences: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onViewPass: (BoardingPass) -> Unit
 ) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
 
@@ -100,8 +102,8 @@ fun MainScaffold(
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             when (tab) {
-                0 -> HomeTab(state, vm, s, onStartCheckIn = onStartCheckIn)
-                1 -> TripsTab(state, s)
+                0 -> HomeTab(state, vm, s, onStartCheckIn = onStartCheckIn, onViewPass = onViewPass)
+                1 -> TripsTab(state, s, onViewPass = onViewPass)
                 2 -> ExploreTab()
                 else -> ProfileTab(state, s, onOpenPreferences, onLogout)
             }

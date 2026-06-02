@@ -4,27 +4,40 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- MyPass mark: ascending airplane in a soft diagonal at 30° (safe zone ~66x66 centered) -->
-    <!-- Centered in the 108x108 viewport. -->
+
+    <!-- Matches the logo PNG: white circle inside the safe zone + dark-green
+         top-down airplane silhouette, slightly tilted upward to the right. -->
+
+    <!-- White circle (safe zone is 66x66 centered at 54,54) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,54 m-33,0 a33,33 0 1,0 66,0 a33,33 0 1,0 -66,0" />
+
+    <!-- Dark green airplane (top-down view, rotated -22°) -->
     <group
         android:translateX="54"
         android:translateY="54"
-        android:rotation="-30">
-        <!-- Main fuselage + nose (ascending shape) -->
+        android:rotation="-22">
+
+        <!-- Fuselage with rounded nose -->
         <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M-3,-22 L4,-22 L5,-12 L5,12 L8,18 L8,22 L2,21 L-2,21 L-8,22 L-8,18 L-5,12 L-5,-12 Z" />
-        <!-- Main wings (swept-back, big) -->
+            android:fillColor="#004D2F"
+            android:pathData="M-3,-21 Q-3,-23 0,-23 Q3,-23 3,-21 L3,13 L8,17 L8,20 L-8,20 L-8,17 L-3,13 Z" />
+
+        <!-- Main wings — swept-back trapezoids -->
         <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M-5,-3 L-26,8 L-26,12 L-5,5 L5,5 L26,12 L26,8 L5,-3 Z" />
-        <!-- Tail stabilizers -->
+            android:fillColor="#004D2F"
+            android:pathData="M-3,-3 L-25,5 L-25,8 L-3,4 Z" />
         <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M-10,15 L-3,12 L3,12 L10,15 L10,18 L-10,18 Z" />
-        <!-- Cockpit accent (light) -->
+            android:fillColor="#004D2F"
+            android:pathData="M3,-3 L25,5 L25,8 L3,4 Z" />
+
+        <!-- Horizontal tail stabilizers -->
         <path
-            android:fillColor="#CFE7D7"
-            android:pathData="M0,-18 m-2.4,0 a2.4,2.4 0 1,0 4.8,0 a2.4,2.4 0 1,0 -4.8,0" />
+            android:fillColor="#004D2F"
+            android:pathData="M-3,13 L-11,16 L-11,18 L-3,17 Z" />
+        <path
+            android:fillColor="#004D2F"
+            android:pathData="M3,13 L11,16 L11,18 L3,17 Z" />
     </group>
 </vector>

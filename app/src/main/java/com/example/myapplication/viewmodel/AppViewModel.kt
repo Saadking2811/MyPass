@@ -314,6 +314,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun clearMessage()              { _uiState.update { it.copy(statusMessage = null) } }
     fun showMessage(message: String) { _uiState.update { it.copy(statusMessage = message) } }
 
+    /**
+     * Select an existing boarding pass to display. Used when the user taps a
+     * pass from the Trips tab or Home — sets it as the latest pass so the
+     * BoardingPassScreen renders this specific one (not just the most recent).
+     */
+    fun viewBoardingPass(pass: BoardingPass) {
+        _uiState.update { it.copy(latestBoardingPass = pass) }
+    }
+
     fun resetForNewCheckIn() {
         _uiState.update {
             it.copy(

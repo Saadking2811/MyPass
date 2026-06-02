@@ -56,7 +56,11 @@ import com.example.myapplication.viewmodel.AppUiState
 
 /** Bottom-nav "Trips" tab — switches between cached flights and boarding passes. */
 @Composable
-fun TripsTab(state: AppUiState, s: (String) -> String) {
+fun TripsTab(
+    state: AppUiState,
+    s: (String) -> String,
+    onViewPass: (BoardingPass) -> Unit = {}
+) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -112,7 +116,9 @@ fun TripsTab(state: AppUiState, s: (String) -> String) {
                 if (state.cachedBoardingPasses.isEmpty()) {
                     item { EmptyTripsCard(Icons.Filled.QrCode2, "No boarding passes yet", "Complete a check-in to receive your boarding pass.") }
                 } else {
-                    items(state.cachedBoardingPasses) { pass -> BoardingPassListItem(pass) }
+                    items(state.cachedBoardingPasses) { pass ->
+                        BoardingPassListItem(pass, onClick = { onViewPass(pass) })
+                    }
                 }
             }
             item { Spacer(modifier = Modifier.height(20.dp)) }
@@ -140,9 +146,9 @@ private fun RowScope.TripTab(title: String, selected: Boolean, onClick: () -> Un
 }
 
 @Composable
-private fun BoardingPassListItem(pass: BoardingPass) {
+private fun BoardingPassListItem(pass: BoardingPass, onClick: () -> Unit) {
     Card(
-        modifier  = Modifier.fillMaxWidth(),
+        modifier  = Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape     = RoundedCornerShape(16.dp),
         colors    = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(2.dp)
